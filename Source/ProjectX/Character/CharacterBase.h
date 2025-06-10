@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "XGameplayTags.h"
 #include "Logging/LogMacros.h"
 #include "CharacterBase.generated.h"
 
@@ -27,7 +28,10 @@ UCLASS(config=Game)
 class ACharacterBase : public ACharacter, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
-	
+public:
+	inline const FGameplayTag& GetGait() const { return Gait; }
+
+protected:	
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
@@ -59,6 +63,21 @@ class ACharacterBase : public ACharacter, public IAbilitySystemInterface
 	/** Look Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* LookAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* WalkAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SprintAction;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* CrouchAction;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
+	FGameplayTag Gait{XGaitTags::Running};
+
+private:
+	
 public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	virtual void PossessedBy(AController* NewController) override;
@@ -72,7 +91,6 @@ public:
 	TArray<TSubclassOf<UGameplayAbility>> PassiveGameplayAbilities;
 
 	ACharacterBase();
-
 
 	// Attribute Getter
 	UFUNCTION(BlueprintCallable)
@@ -90,11 +108,11 @@ public:
 protected:
 	virtual void Tick(float DeltaSeconds) override;
 	
-	/** Called for movement input */
-	void Move(const FInputActionValue& Value);
-
-	/** Called for looking input */
-	void Look(const FInputActionValue& Value);
+	/** Inputs */
+	void Input_OnMove(const FInputActionValue& Value);
+	void Input_OnLook(const FInputActionValue& Value);
+	void Input_OnWalk();
+	void Input_OnSprint(const FInputActionValue& Value);
 	
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;

@@ -13,15 +13,11 @@
 #include "AbilitySystem/XAbilitySystemComponent.h"
 #include "AbilitySystem/XAttributeSet.h"
 #include "AbilitySystem/XGameplayAbility.h"
-#include "Components/ArrowComponent.h"
-
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 //////////////////////////////////////////////////////////////////////////
 // AProjectXCharacter
-
-
 ACharacterBase::ACharacterBase()
 {
 	// Set size for collision capsule
@@ -68,14 +64,12 @@ ACharacterBase::ACharacterBase()
 
 void ACharacterBase::BeginPlay()
 {
-	// Call the base class  
 	Super::BeginPlay();
 	check(AbilitySystemComponent);
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
 
 	// Register Attribute Change Event
-	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
-		UXAttributeSet::GetHealthAttribute()).AddUObject(this, &ACharacterBase::OnHealthChanged);
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UXAttributeSet::GetHealthAttribute()).AddUObject(this, &ACharacterBase::OnHealthChanged);
 }
 
 float ACharacterBase::GetHealth() const
@@ -153,10 +147,8 @@ void ACharacterBase::InitializePassiveAbilities()
 	}
 }
 
-
 //////////////////////////////////////////////////////////////////////////
 // Input
-
 void ACharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Add Input Mapping Context
@@ -167,19 +159,21 @@ void ACharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
-	
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
-		
 		// Jumping
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
-
 		// Moving
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ACharacterBase::Move);
-
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ACharacterBase::Input_OnMove);
 		// Looking
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ACharacterBase::Look);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ACharacterBase::Input_OnLook);
+		// Walk/Sprint/Crouch
+		EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Triggered, this, &ACharacterBase::Input_OnWalk);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Triggered, this, &ACharacterBase::Input_OnSprint);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &ACharacterBase::Input_OnSprint);
+		//EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Triggered, this, &ACharacterBase::);
+		// 
 	}
 	else
 	{
@@ -196,7 +190,7 @@ void ACharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	}
 }
 
-void ACharacterBase::Move(const FInputActionValue& Value)
+void ACharacterBase::Input_OnMove(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -223,15 +217,35 @@ void ACharacterBase::Move(const FInputActionValue& Value)
 	
 }
 
-void ACharacterBase::Look(const FInputActionValue& Value)
+void ACharacterBase::Input_OnLook(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr)
 	{
-		// add yaw and pitch input to controller
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
+}
+
+void ACharacterBase::Input_OnWalk()
+{
+	if (Gait == XGaitTags::Walking)
+	{
+		Gait = XGaitTags::Running;
+		GetCharacterMovement()->MaxWalkSpeed = 500.f;
+		// todo: 后续类似的改动通过refresh或者进行更新
+	} else if (Gait == XGaitTags::Running)
+	{
+		Gait = XGaitTags::Walking;
+		GetCharacterMovement()->MaxWalkSpeed = 375.f;
+	}
+	UE_LOG(LogTemp, Error, TEXT("On Walk"));
+}
+
+void ACharacterBase::Input_OnSprint(const FInputActionValue& Value)
+{
+	// input is a bool
+	Gait = Value.Get<bool>() ? XGaitTags::Sprinting : XGaitTags::Running; 
 }

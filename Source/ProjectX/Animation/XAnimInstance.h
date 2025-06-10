@@ -3,9 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "XGameplayTags.h"
 #include "Animation/AnimInstance.h"
+#include "XGameplayTags.h"
 #include "XAnimInstance.generated.h"
 
+class ACharacterBase;
 /**
  * 
  */
@@ -14,15 +17,21 @@ class PROJECTX_API UXAnimInstance : public UAnimInstance
 {
 	GENERATED_BODY()
 
-
+// function
 public:
-	
+	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+	virtual void NativeInitializeAnimation() override;
 private:
 	
 protected:
-	// function
 
+	
+// variable
+public:
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
+	TObjectPtr<ACharacterBase> Character;
+	
 	// Location
 	UPROPERTY(BlueprintReadWrite, Category = "Location")
 	FVector WorldLocation;
@@ -80,4 +89,9 @@ protected:
 	
 	UPROPERTY(BlueprintReadWrite)
 	bool IsFirstUpdate = true;
+
+	// State
+	UPROPERTY(BlueprintReadWrite, Category = "State")
+	FGameplayTag Gait;
+	
 };
