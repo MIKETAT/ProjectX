@@ -49,3 +49,6 @@ Session.vim
 
 # Visual Studio
 .vs
+
+# ignore Animation Asset cause LFS data is limited
+Content/Asset

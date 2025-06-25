@@ -19,8 +19,8 @@ class PROJECTX_API UXAnimInstance : public UAnimInstance
 
 // function
 public:
-	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 	virtual void NativeInitializeAnimation() override;
+	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 private:
 	
 protected:
@@ -63,7 +63,7 @@ protected:
 	FVector LocalVelocity2D;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Velocity")
-	float LocalVelocityDirectionAngle;	// 速度与角色旋转前向向量 的夹角
+	float LocalVelocityDirectionAngleNoOffset;	// 速度与角色旋转前向向量 的夹角
 
 	UPROPERTY(BlueprintReadWrite, Category = "Velocity")
 	float LocalVelocityDirectionAngleWithOffset;
@@ -92,6 +92,5 @@ protected:
 
 	// State
 	UPROPERTY(BlueprintReadWrite, Category = "State")
-	FGameplayTag Gait;
-	
+	FGameplayTag Gait{XGaitTags::Running};
 };

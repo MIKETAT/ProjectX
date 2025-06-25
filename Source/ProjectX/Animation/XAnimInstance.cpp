@@ -3,11 +3,13 @@
 
 #include "XAnimInstance.h"
 #include "Character/CharacterBase.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
-void UXAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
+
+void UXAnimInstance::NativeInitializeAnimation()
 {
-	Super::NativeUpdateAnimation(DeltaSeconds);
-
+	Super::NativeInitializeAnimation();
+	Character = Cast<ACharacterBase>(GetOwningActor());
 	if (!IsValid(Character))
 	{
 		return;
@@ -15,8 +17,12 @@ void UXAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Gait = Character->GetGait();
 }
 
-void UXAnimInstance::NativeInitializeAnimation()
+void UXAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
-	Super::NativeInitializeAnimation();
-	Character = Cast<ACharacterBase>(GetOwningActor());
+	Super::NativeUpdateAnimation(DeltaSeconds);
+	if (!IsValid(Character))
+	{
+		return;
+	}
+	Gait = Character->GetGait();
 }
