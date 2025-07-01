@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "ClimbComponent.generated.h"
 
+class ACharacterBase;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECTX_API UClimbComponent : public UActorComponent
@@ -24,5 +25,14 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-		
+	virtual void InitializeComponent() override;
+	
+	// Check if Character Can Hang on a Wall
+	UFUNCTION(BlueprintCallable, Category = "Climb", Meta = (ReturnDisplayName = "CanHang"))
+	bool HangTracer();
+	
+// Variables
+private:
+	UPROPERTY()
+	ACharacterBase* OwnerCharacter;
 };

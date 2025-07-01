@@ -9,6 +9,7 @@
 #include "Logging/LogMacros.h"
 #include "CharacterBase.generated.h"
 
+class UClimbSettings;
 struct FOnAttributeChangeData;
 class UGameplayAbility;
 class UGameplayEffect;
@@ -30,6 +31,11 @@ class ACharacterBase : public ACharacter, public IAbilitySystemInterface
 	GENERATED_BODY()
 public:
 	inline const FGameplayTag& GetGait() const { return Gait; }
+
+	// Getter Function
+	// consider: 是否有多种配置的需要
+	UFUNCTION()
+	UClimbSettings* SelectClimbSetting() const { return ClimbSetting; } 
 
 protected:	
 	/** Camera boom positioning the camera behind the character */
@@ -76,6 +82,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
 	FGameplayTag Gait{XGaitTags::Running};
 
+
+	// Settings;
+	UPROPERTY()
+	UClimbSettings* ClimbSetting;
 private:
 	
 public:
