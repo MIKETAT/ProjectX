@@ -6,8 +6,10 @@
 #include "XGameplayTags.h"
 #include "Animation/AnimInstance.h"
 #include "XGameplayTags.h"
+#include "Component/ClimbComponent.h"
 #include "XAnimInstance.generated.h"
 
+enum class EHangMoveDirection : uint8;
 class ACharacterBase;
 /**
  * 
@@ -21,10 +23,13 @@ class PROJECTX_API UXAnimInstance : public UAnimInstance
 public:
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+
+	void SetHangState(bool NewState);
+	void SetHangMoveDirection(EHangMoveDirection MoveDirection);
 private:
 	
 protected:
-
+	
 	
 // variable
 public:
@@ -93,4 +98,10 @@ protected:
 	// State
 	UPROPERTY(BlueprintReadWrite, Category = "State")
 	FGameplayTag Gait{XGaitTags::Running};
+
+	UPROPERTY(BlueprintReadWrite, Category = "State", meta = (AllowPrivateAccess = "true"))
+	bool IsHanging{false};
+
+	UPROPERTY(BlueprintReadOnly, Category = "State | Hanging")
+	EHangMoveDirection HangMoveDirection{EHangMoveDirection::None};
 };

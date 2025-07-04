@@ -26,3 +26,13 @@ void UXAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	}
 	Gait = Character->GetGait();
 }
+
+void UXAnimInstance::SetHangState(bool NewState)
+{
+	IsHanging = NewState;
+}
+
+void UXAnimInstance::SetHangMoveDirection(EHangMoveDirection MoveDirection)
+{
+	HangMoveDirection = MoveDirection;
+}

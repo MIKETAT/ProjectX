@@ -7,9 +7,6 @@
 #include "Abilities/GameplayAbility.h"
 #include "XGameplayAbility.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class PROJECTX_API UXGameplayAbility : public UGameplayAbility
 {
@@ -17,7 +14,9 @@ class PROJECTX_API UXGameplayAbility : public UGameplayAbility
 public:
 	UXGameplayAbility();
 
-	// Input
+	// Input   ...no idea why i write it
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category= GAS)
 	EAbilityInputID AbilityInputID = EAbilityInputID::None;
+
+	
 };

@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "XAbilitySystemComponent.generated.h"
 
+class UXGameplayAbility;
 /**
  * 
  */
@@ -13,5 +14,6 @@ UCLASS()
 class PROJECTX_API UXAbilitySystemComponent : public UAbilitySystemComponent
 {
 	GENERATED_BODY()
-	
+public:
+	UXAbilitySystemComponent() {}
 };

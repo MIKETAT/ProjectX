@@ -15,26 +15,30 @@ struct FClimbTraceSetting
 	TEnumAsByte<ECollisionChannel> ClimbTraceChannel{ECC_Visibility};
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
-	float ReachDistance{150.f};
+	float ReachDistance{100.f};
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
-	float TraceCapsuleRadius{20.f};
+	float TraceCapsuleRadius{42.f};
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
-	float TargetLocationOffset{15.f};	// 从上至下的检测需要向墙内部延伸一段距离而不是在边缘进行检测
+	float TargetLocationOffset{30.f};	// 从上至下的检测需要向墙内部延伸一段距离而不是在边缘进行检测
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
 	FVector2f LedgeHeight{50.f, 250.f};
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
-	float ClimbLedgeThreshold{100.f};
+	float ClimbLedgeThreshold{150.f};
 };
 
 
-UCLASS()
+UCLASS(BlueprintType)
 class PROJECTX_API UClimbSettings : public UDataAsset
 {
 	GENERATED_BODY()
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FClimbTraceSetting TraceSetting;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
+	TObjectPtr<UAnimMontage> ClimbMontage;
 };

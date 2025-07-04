@@ -20,8 +20,11 @@ public class ProjectX : ModuleRules
 			"Engine", 
 			"InputCore", 
 			"EnhancedInput",
-			"GameplayTags"
-		});
+			"GameplayTags",
+			"UMG",
+			"Slate",
+			"SlateCore"
+        });
 		PrivateDependencyModuleNames.AddRange(new string[] {"GameplayAbilities", "GameplayTags", "GameplayTasks"});
 	}
 }

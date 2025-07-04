@@ -20,7 +20,7 @@ void AXPlayerController::BeginPlay()
 
 void AXPlayerController::ShowHUD(bool Visible)
 {
-	check(PlayerHUD);
+	ensure(PlayerHUD);
 	if (Visible)
 	{
 		PlayerHUD->SetVisibility(ESlateVisibility::Visible);
@@ -37,7 +37,7 @@ void AXPlayerController::CreateHUD()
 		ShowHUD(true);
 	} else
 	{
-		check(HUDClass);
+		ensure(HUDClass);
 		PlayerHUD = CreateWidget<UPlayerHUD>(this, HUDClass);
 		if (PlayerHUD)
 		{

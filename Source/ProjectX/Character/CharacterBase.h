@@ -9,6 +9,9 @@
 #include "Logging/LogMacros.h"
 #include "CharacterBase.generated.h"
 
+class UXAnimInstance;
+class UXCharacterMovementComponent;
+class UClimbComponent;
 class UClimbSettings;
 struct FOnAttributeChangeData;
 class UGameplayAbility;
@@ -18,6 +21,8 @@ class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
+class UXGameplayAbility;
+class UXAbilitySystemComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -30,43 +35,53 @@ class ACharacterBase : public ACharacter, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
 public:
-	inline const FGameplayTag& GetGait() const { return Gait; }
+	FORCEINLINE const FGameplayTag& GetGait() const { return Gait; }
 
 	// Getter Function
 	// consider: 是否有多种配置的需要
 	UFUNCTION()
-	UClimbSettings* SelectClimbSetting() const { return ClimbSetting; } 
+	UClimbSettings* SelectClimbSetting() const { return ClimbSetting; }
+	bool GetIsHanging() const { return bIsHanging; }
+	void ResetClimbMoveInput();
+	virtual void PostInitializeComponents() override;
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	UArrowComponent* DebugArrow;
 
-protected:	
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
 
-	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
 
 	// GAS
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= GAS, meta = (AllowPrivateAccess = "true"))
-	class UXAbilitySystemComponent* AbilitySystemComponent;
+	UXAbilitySystemComponent* ASC;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= GAS, meta = (AllowPrivateAccess = "true"))
 	class UXAttributeSet* AttributeSet;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= GAS, meta = (AllowPrivateAccess = "true"))
+	UClimbComponent* ClimbComp;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= GAS, meta = (AllowPrivateAccess = "true"))
+	class UInventoryComponent* InventoryComp;
 	
 	// Input
 	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputMappingContext* DefaultMappingContext;
 
-	/** Jump Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputMappingContext* HangingMappingContext;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* JumpAction;
-
-	/** Move Input Action */
+	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* MoveAction;
-
-	/** Look Input Action */
+	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* LookAction;
 
@@ -78,14 +93,26 @@ protected:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* CrouchAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* ClimbAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* ClimbMoveAction;
 	
+	// States
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
 	FGameplayTag Gait{XGaitTags::Running};
 
-
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
+	bool bIsHanging{false};
+	
 	// Settings;
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (AllowPrivateAccess = "true"))
 	UClimbSettings* ClimbSetting;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (AllowPrivateAccess = "true"))
+	UXAnimInstance* AnimInstance;
 private:
 	
 public:
@@ -94,13 +121,13 @@ public:
 	virtual void InitializePassiveEffects();
 	virtual void InitializePassiveAbilities();
 	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = GAS)
+	TArray<TSubclassOf<UXGameplayAbility>> PassiveGameplayAbilities;
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = GAS)
 	TArray<TSubclassOf<UGameplayEffect>> PassiveGameplayEffects;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = GAS)
-	TArray<TSubclassOf<UGameplayAbility>> PassiveGameplayAbilities;
-
-	ACharacterBase();
+	ACharacterBase(const FObjectInitializer& ObjInit);
 
 	// Attribute Getter
 	UFUNCTION(BlueprintCallable)
@@ -109,6 +136,12 @@ public:
 	UFUNCTION(BlueprintCallable)
 	virtual float GetMaxHealth() const;
 
+	UFUNCTION(BlueprintCallable)
+	virtual float GetMana() const;
+
+	UFUNCTION(BlueprintCallable)
+	virtual float GetMaxMana() const;
+	
 	UFUNCTION(BlueprintCallable)
 	virtual float GetStamina() const;
 
@@ -119,16 +152,22 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 	
 	/** Inputs */
+	void SelectMappingContext();
+	void Input_OnJump();
+	void Input_OnStopJumping();
 	void Input_OnMove(const FInputActionValue& Value);
 	void Input_OnLook(const FInputActionValue& Value);
 	void Input_OnWalk();
 	void Input_OnSprint(const FInputActionValue& Value);
+	void Input_OnClimbUp(const FInputActionValue& Value);
+	void Input_OnClimbMove(const FInputActionValue& Value);
+	void Input_OnClimbMove_Complete(const FInputActionValue& Value);
 	
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	
 	// To add mapping context
-	virtual void BeginPlay();
+	virtual void BeginPlay() override;
 
 	/**
 	 * Property Callback
@@ -147,20 +186,21 @@ protected:
 	UPROPERTY(BlueprintAssignable, Category = GAS)
 	FOnHealthChangeEvent HealthChangeEvent;
 	
-	/*UFUNCTION(BlueprintImplementableEvent)
-	void OnMaxHealthChanged(float Value, const struct FGameplayTagContainer& EventTag);
-
 	UFUNCTION(BlueprintImplementableEvent)
 	void OnStaminaChanged(float Value, const struct FGameplayTagContainer& EventTag);
 
 	UFUNCTION(BlueprintImplementableEvent)
-	void OnMaxStaminaChanged(float Value, const struct FGameplayTagContainer& EventTag);*/
+	void OnMaxStaminaChanged(float Value, const struct FGameplayTagContainer& EventTag);
+
+	UFUNCTION()
+	void OnHangStateChanged(bool NewState);
+	
+	UFUNCTION()
+	void OnClimbUpMontageEnded(UAnimMontage* ClimbUpMontage, bool IsComplete);
 	
 
 public:
-	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
-	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 };
 
