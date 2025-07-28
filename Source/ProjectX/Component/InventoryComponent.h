@@ -1,14 +1,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IDetailTreeNode.h"
 #include "Components/ActorComponent.h"
+#include "Items/ItemDefinition.h"
 #include "Net/Serialization/FastArraySerializer.h"
 #include "InventoryComponent.generated.h"
 
 class AXPlayerController;
 class UInventoryComponent;
 class UInventoryGridSlot;
+class UInventoryStatics;
 enum class EItemCategory : uint8;
 class UInventoryWidget;
 class UItemInstance;
@@ -24,6 +25,34 @@ struct FSlotLocation
 
 	UPROPERTY(BlueprintReadOnly)
 	int32 LocalIndex;
+};
+
+// 记录单个SlotWidget存放物品的信息
+USTRUCT()
+struct FSlotStatus
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TSubclassOf<UItemDefinition> SlotItemDef;	// if not nullptr, SlotItemCount > 0
+	
+	UPROPERTY()
+	int32 SlotItemCount{INDEX_NONE};
+
+	bool operator==(const FSlotStatus& Other) const
+	{
+		return SlotItemDef == Other.SlotItemDef;
+	}
+
+	int32 GetRemainingCapacity() const
+	{
+		if (SlotItemDef)
+		{
+			FItemManifest Manifest = GetDefault<UItemDefinition>(SlotItemDef)->Manifest;
+			return Manifest.bStackable ? FMath::Max(Manifest.MaxStackSize - SlotItemCount, 0) : 0;
+		}
+		return 0;
+	}
 };
 
 /** 背包中的物品单元 */
@@ -69,7 +98,8 @@ struct FInventoryList : public FFastArraySerializer
 	void PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize);
 	//~End of FFastArraySerializer contract
 	
-	UItemInstance* AddEntryToIndex(TSubclassOf<UItemDefinition> ItemDef, int32 SlotIndex, int32 Count);	// todo: parameter
+	UItemInstance* AddEntryToIndex(TSubclassOf<UItemDefinition> ItemDef, int32 SlotIndex, int32 Count);
+	UItemInstance* StackItemToIndex(int32 SlotIndex, int32 NewCount);
 	void MoveEntryToIndex(int32 SourceIndex, int32 TargetIndex);
 	void RemoveEntryAtIndex(int32 Index);
 	void SwapEntry(int32 SourceIndex, int32 TargetIndex);
@@ -121,44 +151,44 @@ public:
 	void Server_UI_MoveInventoryItem(int32 SourceIndex, int32 TargetIndex);
 	
 	// ~ End of Inventory UI Function
-
+	
+	/**
+	*	1. 添加一个新物品到空格子	AddItemToInventory
+		2. 添加堆叠物品到已有的格子(不存在拖拽物品进行堆叠, 加入背包时自动堆叠)
+		3. 移除一个格子的物品		RemoveItemAtIndex
+		4. 移动一个物品到空格子		MoveItemToIndex
+		5. 交换两个格子的物品		SwapItems
+	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	UItemInstance* AddItemDefinition(TSubclassOf<UItemDefinition> ItemDef, int32 Count = 1);
-	// unimplemented void AddItemInstance(UItemInstance* ItemInstance);
-
+	
+	// add item to inventory. Stack or New entry
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	UItemInstance* AddItemToInventory(TSubclassOf<UItemDefinition> ItemDef, int32 Count);
-
-	int32 FindFirstAcceptableSlot(TSubclassOf<UItemDefinition> ItemDef);
-	
-	UFUNCTION(BlueprintCallable, Category = "Item")
-	void RemoveItemInstance(UItemInstance* ItemInstance);
-
-
-	// Add Remove and Swap
-	// Add a new Item to Inventory
-
-	//UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
-	//void AddItemAtIndex();	// todo: parameters?
 
 	// Move an exist item to an empty index
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	void MoveItemToIndex(int32 SourceIndex, int32 TargetIndex);
-
-	// Remove Item at Index if it exists
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
-	void RemoveItemAtIndex(int32 ItemIndex);
-
+	
+	UFUNCTION(BlueprintCallable, Category = "Item")
+	void RemoveItemInstance(UItemInstance* ItemInstance);
+	
 	// Swap Two Items that exists
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	void SwapItems(int32 SourceIndex, int32 TargetIndex);
+	
+	// Remove Item at Index if it exists
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	void RemoveItemAtIndex(int32 ItemIndex);
+	
+	// find slot index. stack or new entry
+	int32 FindFirstAcceptableSlot(TSubclassOf<UItemDefinition> ItemDef, int32 Count);
 
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	TArray<UItemInstance*> GetAllItems() const;
 
 	int32 GetItemCountByDefinition(TSubclassOf<UItemDefinition> ItemDef) const;
-
-	//void ToggleInventory();
+	
 	AXPlayerController* GetOwningController() const { return OwningController; }
 
 	int32 GetSlotNumsPerCategory() const { return Rows * Columns; }
@@ -168,13 +198,10 @@ public:
 	bool IsSlotIndexValid(int32 Index) const;
 	bool HasItemAtIndex(int32 Index) const;
 	
-	
-
 	// Getter and Setter
 	int32 GetRows() const { return Rows; }
 	int32 GetColumns() const { return Columns; }
 	// ~End of Getter and Setter
-
 	
 protected:
 	virtual void BeginPlay() override;
@@ -182,7 +209,7 @@ protected:
 // Variables
 public:
 	UPROPERTY()
-	TSet<int32> OccupiedSlots;
+	TMap<int32, FSlotStatus> OccupiedSlots;
 	
 	FInventoryItemChanged OnItemAdded;
 	FInventoryItemChanged OnItemRemoved;

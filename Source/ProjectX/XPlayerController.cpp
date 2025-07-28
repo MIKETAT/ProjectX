@@ -5,6 +5,12 @@
 #include "Items/ItemBase.h"
 #include "UI/Inventory/InventoryWidget.h"
 
+void AXPlayerController::RemoveItemTest_Implementation(int32 Index)
+{
+	ensure(InventoryComp);
+	InventoryComp->RemoveItemAtIndex(Index);
+}
+
 void AXPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);

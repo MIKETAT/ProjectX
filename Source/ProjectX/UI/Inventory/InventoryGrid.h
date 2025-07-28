@@ -34,21 +34,13 @@ public:
 	
 	bool CanMatchCategory(EItemCategory ItemCategory) const { return GridCategory == ItemCategory; }
 
+	UInventoryGridSlot* GetSlotWidgetBySlotIndex(int32 SlotIndex);
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
 	
 private:
 	void ConstructInventoryGrid();
-	
-	UFUNCTION()
-	void OnGridSlotClicked(int32 Index, const FPointerEvent& MouseEvent);
-
-	UFUNCTION()
-	void OnGridSlotHovered(int32 Index, const FPointerEvent& MouseEvent);
-
-	UFUNCTION()
-	void OnGridSlotUnhovered(int32 Index, const FPointerEvent& MouseEvent);
 // Variables
 public:
 	UPROPERTY()

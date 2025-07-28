@@ -3,16 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Component/InventoryComponent.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "InventoryStatics.generated.h"
 
 class UItemDefinition;
 struct FItemManifest;
 class UInventoryComponent;
+
 /**
  * 有关Inventory的静态函数
  */
+
+class UInventoryComponent;
+
 UCLASS()
 class PROJECTX_API UInventoryStatics : public UBlueprintFunctionLibrary
 {
@@ -32,12 +35,12 @@ public:
 
 	UFUNCTION()
 	static EItemCategory GetItemCategoryByDefinition(TSubclassOf<UItemDefinition> ItemDef);
-
+	
 	UFUNCTION()
 	static EItemCategory GetItemCategoryBySlotIndex(int32 SlotIndex, int32 Rows, int32 Columns);
 	
 	UFUNCTION()
-	static  FSlotLocation GetSlotLocation(int32 GlobalIndex, int32 Rows, int32 Columns);
+	static FSlotLocation GetSlotLocation(int32 GlobalIndex, int32 Rows, int32 Columns);
 
 	UFUNCTION()
 	static FIntPoint GetCategoryIndexRange(EItemCategory Category, int32 Rows, int32 Columns);

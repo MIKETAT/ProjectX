@@ -19,13 +19,10 @@ void UInventoryGrid::HandleItemAdded(const FInventoryEntry& Entry, int32 FinalSi
 	{
 		return;
 	}
-	if (UInventoryGridSlot** SlotPtr = SlotWidgetMap.Find(Entry.SlotIndex))
+	if (UInventoryGridSlot* SlotWidget = GetSlotWidgetBySlotIndex(Entry.SlotIndex))
 	{
-		if (UInventoryGridSlot* SlotWidget = *SlotPtr)
-		{
-			TSubclassOf<UItemDefinition> ItemDef = Entry.ItemInstance->GetItemDefinition();
-			SlotWidget->AddItemToSlot(ItemDef, Entry.ItemCount);
-		}	
+		TSubclassOf<UItemDefinition> ItemDef = Entry.ItemInstance->GetItemDefinition();
+		SlotWidget->AddItemToSlot(ItemDef, Entry.ItemCount);
 	}
 }
 
@@ -37,12 +34,9 @@ void UInventoryGrid::HandleItemRemoved(const FInventoryEntry& Entry, int32 Final
 	{
 		return;
 	}
-	if (UInventoryGridSlot** SlotPtr = SlotWidgetMap.Find(Entry.SlotIndex))
+	if (UInventoryGridSlot* SlotWidget = GetSlotWidgetBySlotIndex(Entry.SlotIndex))
 	{
-		if (UInventoryGridSlot* SlotWidget = *SlotPtr)
-		{
-			SlotWidget->RemoveItemFroSlot();
-		}	
+		SlotWidget->RemoveItemFroSlot();
 	}
 }
 
@@ -54,14 +48,23 @@ void UInventoryGrid::HandleItemChanged(const FInventoryEntry& Entry, int32 Final
 	{
 		return;
 	}
-	if (UInventoryGridSlot** SlotPtr = SlotWidgetMap.Find(Entry.SlotIndex))
+	if (UInventoryGridSlot* SlotWidget = GetSlotWidgetBySlotIndex(Entry.SlotIndex))
+	{
+		TSubclassOf<UItemDefinition> ItemDef = Entry.ItemInstance->GetItemDefinition();
+		SlotWidget->AddItemToSlot(ItemDef, Entry.ItemCount);
+	}
+}
+
+UInventoryGridSlot* UInventoryGrid::GetSlotWidgetBySlotIndex(int32 SlotIndex)
+{
+	if (UInventoryGridSlot** SlotPtr = SlotWidgetMap.Find(SlotIndex))
 	{
 		if (UInventoryGridSlot* SlotWidget = *SlotPtr)
 		{
-			TSubclassOf<UItemDefinition> ItemDef = Entry.ItemInstance->GetItemDefinition();
-			SlotWidget->AddItemToSlot(ItemDef, Entry.ItemCount);
+			return SlotWidget;
 		}	
 	}
+	return nullptr;
 }
 
 void UInventoryGrid::NativeOnInitialized()
@@ -87,16 +90,13 @@ void UInventoryGrid::NativeConstruct()
 void UInventoryGrid::ConstructInventoryGrid()
 {
 	ensureMsgf(Rows > 0 && Columns > 0, TEXT("Rows and Columns must be greater than 0!"));
-	ensureMsgf(GridSlotClass, TEXT("GridSlotClass must be set!"));
-	ensure(OwnerInventoryWidget);
+	ensure(GridSlotClass && OwnerInventoryWidget);
 	for (int32 i = 0; i < Rows; i++)
 	{
 		for (int32 j = 0; j < Columns; j++)
 		{
 			UInventoryGridSlot* ItemSlot = CreateWidget<UInventoryGridSlot>(this, GridSlotClass);
-			ensure(ItemSlot);
-			ensure(IsValid(InventoryComponent));
-			// get slot index
+			ensure(ItemSlot && IsValid(InventoryComponent));
 			int32 SlotIndex = InventoryComponent->GetGlobalSlotIndex(GridCategory, i, j);
 			ItemSlot->SetSlotIndex(SlotIndex);
 			SlotWidgetMap.Add(SlotIndex, ItemSlot);
@@ -104,25 +104,6 @@ void UInventoryGrid::ConstructInventoryGrid()
 			ensure(UniformSlot);
 			UniformSlot->SetHorizontalAlignment(HAlign_Fill);
 			UniformSlot->SetVerticalAlignment(VAlign_Fill);
-			
-			// delegate
-			ItemSlot->OnSlotClicked.AddDynamic(this, &ThisClass::OnGridSlotClicked);
-			ItemSlot->OnSlotHovered.AddDynamic(this, &ThisClass::OnGridSlotHovered);
-			ItemSlot->OnSlotUnhovered.AddDynamic(this, &ThisClass::OnGridSlotUnhovered);
 		}
 	}
 }
-
-void UInventoryGrid::OnGridSlotClicked(int32 Index, const FPointerEvent& MouseEvent)
-{
-	
-}
-
-void UInventoryGrid::OnGridSlotHovered(int32 Index, const FPointerEvent& MouseEvent)
-{
-}
-
-void UInventoryGrid::OnGridSlotUnhovered(int32 Index, const FPointerEvent& MouseEvent)
-{
-}
-

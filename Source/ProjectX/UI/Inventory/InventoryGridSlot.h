@@ -8,6 +8,7 @@
 #include "Items/ItemDefinition.h"
 #include "InventoryGridSlot.generated.h"
 
+class UMenuAnchor;
 class UInventoryComponent;
 class UItemDragVisual;
 class UTextBlock;
@@ -97,6 +98,9 @@ protected:
 
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTextBlock> ItemCountText;
+
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UMenuAnchor> SlotMenuAnchor;
 	// ~End of Bind Widget
 	
 	EGridSlotStatus SlotStatus{EGridSlotStatus::UnOccupied};
@@ -111,9 +115,11 @@ protected:
 	TObjectPtr<UTexture2D> DefaultIcon;
 	
 	// 当前存放物品的信息
+	UPROPERTY()
 	TSubclassOf<UItemDefinition> ItemDefinition;
 
 	FItemManifest SlotItemManifest;
+	
 	int32 StackCount{INDEX_NONE};
 
 	int32 SlotIndex{INDEX_NONE};		// 对应Entry

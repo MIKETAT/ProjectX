@@ -95,6 +95,7 @@ void UInventoryComponent::ReadyForReplication()
 // SourceIndex and TargetIndex are globalIndex
 void UInventoryComponent::Server_UI_MoveInventoryItem_Implementation(int32 SourceIndex, int32 TargetIndex)
 {
+	// todo: if stack then Source == Target is ok
 	if (SourceIndex == TargetIndex)
 	{
 		return;
@@ -102,6 +103,7 @@ void UInventoryComponent::Server_UI_MoveInventoryItem_Implementation(int32 Sourc
 	// todo: consider stack
 	if (HasItemAtIndex(TargetIndex))		
 	{
+		// todo: stack
 		SwapItems(SourceIndex, TargetIndex);			// Swap Item
 	} else
 	{	
@@ -114,7 +116,6 @@ UItemInstance* UInventoryComponent::AddItemDefinition(TSubclassOf<UItemDefinitio
 	UItemInstance* Instance = nullptr;
 	if (ItemDef)
 	{
-		// todo: should call AddItemAtIndex
 		Instance = AddItemToInventory(ItemDef, Count);
 		if (IsUsingRegisteredSubObjectList() && IsReadyForReplication() && Instance)
 		{
@@ -124,29 +125,44 @@ UItemInstance* UInventoryComponent::AddItemDefinition(TSubclassOf<UItemDefinitio
 	return Instance;
 }
 
-
 UItemInstance* UInventoryComponent::AddItemToInventory(TSubclassOf<UItemDefinition> ItemDef, int32 Count)
 {
 	// find SlotIndex to insert/ find first empty slot
-	int32 SlotIndex = FindFirstAcceptableSlot(ItemDef);
-	if (IsSlotIndexValid(SlotIndex))
+	int32 SlotIndex = FindFirstAcceptableSlot(ItemDef, Count);
+	if (!IsSlotIndexValid(SlotIndex))
 	{
-		OccupiedSlots.Add(SlotIndex);		//
+		return nullptr;
+	}
+	if (OccupiedSlots.Find(SlotIndex))		// stack
+	{
+		int32 NewCount = OccupiedSlots.Find(SlotIndex)->SlotItemCount + Count; 
+		OccupiedSlots.Find(SlotIndex)->SlotItemCount = NewCount;
+		return InventoryList.StackItemToIndex(SlotIndex, NewCount);
+	} else
+	{
+		// new entry
+		OccupiedSlots.Add(SlotIndex, FSlotStatus(ItemDef, Count));
 		return InventoryList.AddEntryToIndex(ItemDef, SlotIndex, Count);
 	}
-	return nullptr;
 }
 
-// todo: stackable
-int32 UInventoryComponent::FindFirstAcceptableSlot(TSubclassOf<UItemDefinition> ItemDef)
+// 堆叠如果可以全部容纳则返回对应SlotIndex, 否则找下一个
+int32 UInventoryComponent::FindFirstAcceptableSlot(TSubclassOf<UItemDefinition> ItemDef, int32 Count)
 {
 	EItemCategory Category = UInventoryStatics::GetItemCategoryByDefinition(ItemDef);
 	int32 Capacity = GetInventoryCapacity();
 	FIntPoint IndexRange = UInventoryStatics::GetCategoryIndexRange(Category, Rows, Columns);
+	// 1. find SlotIndex if  item can be stacked
+	for (const auto& Pair : OccupiedSlots)
+	{
+		if (Pair.Value.SlotItemDef == ItemDef && Pair.Value.GetRemainingCapacity() >= Count)
+		{
+			return Pair.Key;
+		}
+	}
+	// 2. can't be stacked. find first empty slot
 	for (int32 SlotIndex = IndexRange.X; SlotIndex < IndexRange.Y; SlotIndex++)
 	{
-		// ignore stackable for now
-		// so just find first empty slot
 		if (OccupiedSlots.Find(SlotIndex) == nullptr)
 		{
 			return SlotIndex;
@@ -155,19 +171,31 @@ int32 UInventoryComponent::FindFirstAcceptableSlot(TSubclassOf<UItemDefinition> 
 	return -1;	// -1 means no available slot
 }
 
-
 void UInventoryComponent::MoveItemToIndex(int32 SourceIndex, int32 TargetIndex)
 {
+	if (OccupiedSlots.Find(SourceIndex))
+	{
+		FSlotStatus TargetSlotStatus;
+		OccupiedSlots.RemoveAndCopyValue(SourceIndex, TargetSlotStatus);
+		OccupiedSlots.Add(TargetIndex, TargetSlotStatus);
+	}
 	InventoryList.MoveEntryToIndex(SourceIndex, TargetIndex);
 }
 
 void UInventoryComponent::RemoveItemAtIndex(int32 ItemIndex)
 {
+	OccupiedSlots.Remove(ItemIndex);
 	InventoryList.RemoveEntryAtIndex(ItemIndex);
 }
 
 void UInventoryComponent::SwapItems(int32 SourceIndex, int32 TargetIndex)
 {
+	FSlotStatus SourceStatus;
+	FSlotStatus TargetStatus;
+	OccupiedSlots.RemoveAndCopyValue(SourceIndex, SourceStatus);
+	OccupiedSlots.RemoveAndCopyValue(TargetIndex, TargetStatus);
+	OccupiedSlots.Add(TargetIndex, SourceStatus);
+	OccupiedSlots.Add(SourceIndex, TargetStatus);
 	InventoryList.SwapEntry(SourceIndex, TargetIndex);
 }
 
@@ -226,6 +254,7 @@ TArray<UItemInstance*> FInventoryList::GetAllItems() const
 
 void FInventoryList::PreReplicatedRemove(const TArrayView<int32> RemovedIndices, int32 FinalSize)
 {
+	UE_LOG(LogTemp, Error, TEXT("PreReplicatedRemove, RemovedIndices Size = %d"), RemovedIndices.Num());
 	for (int32 Index : RemovedIndices)
 	{
 		FInventoryEntry& Entry = Items[Index];
@@ -236,6 +265,7 @@ void FInventoryList::PreReplicatedRemove(const TArrayView<int32> RemovedIndices,
 
 void FInventoryList::PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize)
 {
+	UE_LOG(LogTemp, Error, TEXT("PostReplicatedAdd, AddedIndices Size = %d"), AddedIndices.Num());
 	for (int32 Index : AddedIndices)
 	{
 		FInventoryEntry& Entry = Items[Index];
@@ -246,6 +276,7 @@ void FInventoryList::PostReplicatedAdd(const TArrayView<int32> AddedIndices, int
 
 void FInventoryList::PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize)
 {
+	UE_LOG(LogTemp, Error, TEXT("PostReplicatedChange, ChangedIndices Size = %d"), ChangedIndices.Num());
 	for (int32 Index : ChangedIndices)
 	{
 		FInventoryEntry& Entry = Items[Index];
@@ -257,6 +288,8 @@ void FInventoryList::PostReplicatedChange(const TArrayView<int32> ChangedIndices
 
 UItemInstance* FInventoryList::AddEntryToIndex(TSubclassOf<UItemDefinition> ItemDef, int32 SlotIndex, int32 Count)
 {
+	ensure(OwnerInventoryComponent);
+	UE_LOG(LogTemp, Error, TEXT("AddEntryToIndex, SlotIndex = %d, Count = %d"), SlotIndex, Count);
 	UItemInstance* Instance = nullptr;
 	check(ItemDef);
 	FInventoryEntry Entry;
@@ -269,10 +302,25 @@ UItemInstance* FInventoryList::AddEntryToIndex(TSubclassOf<UItemDefinition> Item
 	return Instance;
 }
 
+UItemInstance* FInventoryList::StackItemToIndex(int32 SlotIndex, int32 NewCount)
+{
+	for (auto EntryIt = Items.CreateIterator(); EntryIt; ++EntryIt)
+	{
+		FInventoryEntry& Entry = *EntryIt;
+		if (Entry.SlotIndex == SlotIndex)
+		{
+			Entry.ItemCount = NewCount;
+			MarkItemDirty(Entry);
+			return Entry.ItemInstance;
+		}
+	}
+	return nullptr;
+}
+
 // move item to empty slot
 void FInventoryList::MoveEntryToIndex(int32 SourceIndex, int32 TargetIndex)
 {
-	for (auto EntryIt = Items.CreateIterator(); EntryIt; EntryIt++)
+	for (auto EntryIt = Items.CreateIterator(); EntryIt; ++EntryIt)
 	{
 		FInventoryEntry& SourceEntry = *EntryIt;
 		if (SourceEntry.SlotIndex == SourceIndex)

@@ -6,9 +6,9 @@
 #include "Component/InventoryComponent.h"
 #include "Components/Border.h"
 #include "Components/Image.h"
+#include "Components/MenuAnchor.h"
 #include "Components/TextBlock.h"
 #include "Items/InventoryStatics.h"
-#include "Items/InventoryTypes.h"
 #include "Items/ItemDefinition.h"
 #include "Items/InventoryHUDInterface.h"
 
@@ -42,6 +42,8 @@ void UInventoryGridSlot::NativeConstruct()
 	Super::NativeConstruct();
 	OwningController = Cast<AXPlayerController>(GetOwningPlayer());
 	ensure(OwningController);
+	ensure(SlotMenuAnchor);
+	SlotMenuAnchor->SetPlacement(MenuPlacement_MenuRight);
 }
 
 void UInventoryGridSlot::NativeOnInitialized()
@@ -55,7 +57,17 @@ FReply UInventoryGridSlot::NativeOnMouseButtonDown(const FGeometry& InGeometry, 
 	// Right Mouse Button Click
 	if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
 	{
-		// todo: 选项
+		if (HasItem())
+		{
+			/*HideTooltip();
+			if (!SlotMenuAnchor->IsOpen())
+			{
+				SlotMenuAnchor->Open(true);
+			}*/
+			// Test
+			
+		}
+		return FReply::Handled();
 	}
 	// Left Mouse Button Click
 	else if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)

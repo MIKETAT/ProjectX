@@ -35,10 +35,6 @@ void AItemBase::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, A
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	UE_LOG(LogTemp, Error, TEXT("OnSphereBeginOverlap called on : %s"), HasAuthority() ? TEXT("Authority") : TEXT("Client"));
-	/*if (GetLocalRole() != ROLE_Authority || !ItemDefinitionClass)
-	{
-		return;
-	}*/
 	if (ACharacterBase* CharacterBase = Cast<ACharacterBase>(OtherActor))
 	{
 		CharacterBase->SetOverlapItem(this);
@@ -47,7 +43,7 @@ void AItemBase::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, A
 		{
 			if (UInventoryComponent* InventoryComponent = UInventoryStatics::GetInventoryComponent(PlayerController))
 			{
-				UE_LOG(LogTemp, Error, TEXT("OnSphereBeginOverlap->AddItemDefinition"));
+				
 			}
 		}
 	}

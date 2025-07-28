@@ -49,8 +49,8 @@ public:
 	void AddItem(AItemBase* Item);
 	void SetOverlapItem(AItemBase* Item) { OverlapItem = Item; }
 protected:
-	// test
-	UPROPERTY()
+	
+	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<AItemBase> OverlapItem;
 	// ~ end of test
 	

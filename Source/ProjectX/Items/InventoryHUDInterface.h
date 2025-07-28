@@ -20,4 +20,7 @@ class PROJECTX_API IInventoryHUDInterface
 public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Inventory")
 	void UI_MoveInventoryItem(int32 SourceIndex, int32 TargetIndex);
+
+	/*UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Inventory")
+	void UI_UseInventoryItem(int32 SlotIndex);*/
 };

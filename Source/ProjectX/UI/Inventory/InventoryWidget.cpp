@@ -2,14 +2,11 @@
 
 
 #include "InventoryWidget.h"
-
 #include "InventoryGrid.h"
-#include "InventoryGridSlot.h"
 #include "XPlayerController.h"
 #include "Components/Button.h"
 #include "Components/WidgetSwitcher.h"
 #include "Items/InventoryStatics.h"
-#include "Items/ItemInstance.h"
 
 void UInventoryWidget::NativeOnInitialized()
 {
@@ -22,17 +19,15 @@ void UInventoryWidget::NativeOnInitialized()
 	{
 		OwningInventoryComponent = UInventoryStatics::GetInventoryComponent(PC);
 	}
-	ensure(EquippableButton && ConsumablesButton);
+	ensure(Btn_Equippable && Btn_Consumables);
 	ensure(EquipmentGrid && ConsumablesGrid);
 
 	EquipmentGrid->OwnerInventoryWidget = this;
 	ConsumablesGrid->OwnerInventoryWidget = this;
 	
 	// bind button delegate 
-	EquippableButton->OnClicked.AddDynamic(this, &ThisClass::ShowEquipmentGrid);
-	ConsumablesButton->OnClicked.AddDynamic(this, &ThisClass::ShowConsumablesGrid);
-
-
+	Btn_Equippable->OnClicked.AddDynamic(this, &ThisClass::ShowEquipmentGrid);
+	Btn_Consumables->OnClicked.AddDynamic(this, &ThisClass::ShowConsumablesGrid);
 	
 	ShowEquipmentGrid();
 }
@@ -48,20 +43,20 @@ void UInventoryWidget::SetActiveGrid(UInventoryGrid* Grid, UButton* Button)
 // todo: do not hard code
 void UInventoryWidget::ShowEquipmentGrid()
 {
-	SetActiveGrid(EquipmentGrid, EquippableButton);
+	SetActiveGrid(EquipmentGrid, Btn_Equippable);
 }
 
 // todo: do not hard code
 void UInventoryWidget::ShowConsumablesGrid()
 {
-	SetActiveGrid(ConsumablesGrid, ConsumablesButton);
+	SetActiveGrid(ConsumablesGrid, Btn_Consumables);
 }
 
 // todo: do not hard code button disabling
 void UInventoryWidget::DisableButton(UButton* Button)
 {
-	EquippableButton->SetIsEnabled(true);
-	ConsumablesButton->SetIsEnabled(true);
+	Btn_Equippable->SetIsEnabled(true);
+	Btn_Consumables->SetIsEnabled(true);
 	Button->SetIsEnabled(false);
 }
 

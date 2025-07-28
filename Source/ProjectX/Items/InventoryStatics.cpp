@@ -2,7 +2,6 @@
 
 
 #include "InventoryStatics.h"
-
 #include "ItemDefinition.h"
 #include "Component/InventoryComponent.h"
 

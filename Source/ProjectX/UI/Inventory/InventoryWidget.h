@@ -53,10 +53,10 @@ public:
 	TObjectPtr<UInventoryGrid> ConsumablesGrid;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> EquippableButton;
+	TObjectPtr<UButton> Btn_Equippable;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> ConsumablesButton;
+	TObjectPtr<UButton> Btn_Consumables;
 
 	UPROPERTY()
 	TObjectPtr<UInventoryComponent> OwningInventoryComponent;

@@ -39,16 +39,19 @@ public:
 
 	UFUNCTION(Server, Reliable)
 	void PickupItem(AItemBase* Item);
+
+	// TEST
+	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "test")
+	void RemoveItemTest(int32 Index);
 	
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void BeginPlay() override;
 	virtual void PostInitializeComponents() override;
-
-
-	void ConstructInventoryWidget();
 	
-	// Variables
+	void ConstructInventoryWidget();
+
+// Variables
 	UPROPERTY(BlueprintReadWrite, Category= HUD)
 	TObjectPtr<UPlayerHUD> PlayerHUD;
 
