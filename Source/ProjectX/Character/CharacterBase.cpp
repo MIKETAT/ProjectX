@@ -9,6 +9,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "XPlayerController.h"
 #include "AbilitySystem/XAbilitySystemComponent.h"
 #include "AbilitySystem/XAttributeSet.h"
 #include "AbilitySystem/XGameplayAbility.h"
@@ -17,6 +18,7 @@
 #include "Component/InventoryComponent.h"
 #include "Component/XCharacterMovementComponent.h"
 #include "Components/ArrowComponent.h"
+#include "Items/ItemBase.h"
 #include "Settings/ClimbSettings.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -24,34 +26,29 @@ DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 ACharacterBase::ACharacterBase(const FObjectInitializer& ObjInit)
  : Super(ObjInit.SetDefaultSubobjectClass<UXCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
-	// Set size for collision capsule
+	SetReplicates(true);
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 	SetRootComponent(GetCapsuleComponent());
-	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
-
-	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
-	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 700.f;
 	GetCharacterMovement()->AirControl = 0.35f;
 	GetCharacterMovement()->MaxWalkSpeed = 500.f;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
+	GetCharacterMovement()->bAlwaysCheckFloor = true;
 
-	// Create a camera boom (pulls in towards the player if there is a collision)
+
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
 	CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
 
-	// Create a follow camera
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
@@ -64,28 +61,26 @@ ACharacterBase::ACharacterBase(const FObjectInitializer& ObjInit)
 
 	// Climb Component
 	ClimbComp = CreateDefaultSubobject<UClimbComponent>(TEXT("ClimbComp"));
-
-	// Inventory Component
-	InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComp"));
-
+	
 	// Debug Arrow
 	DebugArrow = CreateDefaultSubobject<UArrowComponent>(TEXT("DebugArrow"));
 	DebugArrow->SetupAttachment(RootComponent);
 	DebugArrow->SetVisibility(true);
 	DebugArrow->SetHiddenInGame(false);
+	
 }
 
 
 void ACharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
+	SetReplicateMovement(true);
 	ensure(ASC);
 	ASC->InitAbilityActorInfo(this, this);
 
 	// Register Attribute Change Event
 	ASC->GetGameplayAttributeValueChangeDelegate(UXAttributeSet::GetHealthAttribute()).AddUObject(this, &ACharacterBase::OnHealthChanged);
 	
-	// Climb Component
 	if (ClimbComp)
 	{
 		ClimbComp->OnHangStateChanged.AddDynamic(this, &ThisClass::OnHangStateChanged);
@@ -132,6 +127,7 @@ float ACharacterBase::GetMaxStamina() const
 void ACharacterBase::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	
 }
 
 void ACharacterBase::SelectMappingContext()
@@ -204,6 +200,11 @@ void ACharacterBase::PostInitializeComponents()
 	
 }
 
+void ACharacterBase::AddItem(AItemBase* Item)
+{
+	
+}
+
 UAbilitySystemComponent* ACharacterBase::GetAbilitySystemComponent() const
 {
 	return ASC;
@@ -269,6 +270,12 @@ void ACharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 		EnhancedInputComponent->BindAction(ClimbAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnClimbUp);
 		EnhancedInputComponent->BindAction(ClimbMoveAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnClimbMove);
 		EnhancedInputComponent->BindAction(ClimbMoveAction, ETriggerEvent::Completed, this, &ThisClass::Input_OnClimbMove_Complete);
+
+		// Inventory
+		EnhancedInputComponent->BindAction(ToggleInventoryAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnToggleInventory);
+
+		// Interact
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnInteract);
 	}
 	else
 	{
@@ -401,5 +408,21 @@ void ACharacterBase::Input_OnClimbMove_Complete(const FInputActionValue& Value)
 	if (UXCharacterMovementComponent* UxCharacterMovementComp = Cast<UXCharacterMovementComponent>(GetCharacterMovement()))
 	{
 		UxCharacterMovementComp->SetHangInput(0);	
+	}
+}
+
+void ACharacterBase::Input_OnToggleInventory()
+{
+	if (AXPlayerController* PlayerController = Cast<AXPlayerController>(GetController()))
+	{
+		PlayerController->ToggleInventory();
+	}
+}
+
+void ACharacterBase::Input_OnInteract()
+{
+	if (AXPlayerController* PlayerController = Cast<AXPlayerController>(GetController()))
+	{
+		PlayerController->PickupItem(OverlapItem);
 	}
 }

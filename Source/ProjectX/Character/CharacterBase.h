@@ -9,6 +9,7 @@
 #include "Logging/LogMacros.h"
 #include "CharacterBase.generated.h"
 
+class AItemBase;
 class UXAnimInstance;
 class UXCharacterMovementComponent;
 class UClimbComponent;
@@ -44,7 +45,15 @@ public:
 	bool GetIsHanging() const { return bIsHanging; }
 	void ResetClimbMoveInput();
 	virtual void PostInitializeComponents() override;
+
+	void AddItem(AItemBase* Item);
+	void SetOverlapItem(AItemBase* Item) { OverlapItem = Item; }
 protected:
+	// test
+	UPROPERTY()
+	TObjectPtr<AItemBase> OverlapItem;
+	// ~ end of test
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 	UArrowComponent* DebugArrow;
 
@@ -64,9 +73,6 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= GAS, meta = (AllowPrivateAccess = "true"))
 	UClimbComponent* ClimbComp;
-	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= GAS, meta = (AllowPrivateAccess = "true"))
-	class UInventoryComponent* InventoryComp;
 	
 	// Input
 	/** MappingContext */
@@ -94,6 +100,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* CrouchAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* ToggleInventoryAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* InteractAction;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* ClimbAction;
 
@@ -162,6 +174,8 @@ protected:
 	void Input_OnClimbUp(const FInputActionValue& Value);
 	void Input_OnClimbMove(const FInputActionValue& Value);
 	void Input_OnClimbMove_Complete(const FInputActionValue& Value);
+	void Input_OnToggleInventory();
+	void Input_OnInteract();
 	
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;

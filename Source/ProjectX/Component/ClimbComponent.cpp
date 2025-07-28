@@ -16,11 +16,11 @@ UClimbComponent::UClimbComponent()
 void UClimbComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	ensure(OwnerCharacter);
 	if (!OwnerCharacter)
 	{
 		OwnerCharacter = Cast<ACharacterBase>(GetOwner());
 	}
+	ensure(OwnerCharacter);
 }
 
 void UClimbComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

@@ -19,7 +19,7 @@ class PROJECTX_API UXCharacterMovementComponent : public UCharacterMovementCompo
 public:
 	void SetWallNormal(FVector NewWallNormal);
 	void SetHangInput(float Input);
-	
+	virtual void InitializeComponent() override;
 protected:
 	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 	virtual void PhysCustom(float deltaTime, int32 Iterations) override;

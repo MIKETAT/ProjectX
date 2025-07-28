@@ -52,3 +52,6 @@ Session.vim
 
 # ignore Animation Asset cause LFS data is limited
 Content/Asset
+Content/__ExternalActors__
+
+Source/ProjectX/Todo.md
