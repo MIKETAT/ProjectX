@@ -48,6 +48,22 @@ public:
 
 	void AddItem(AItemBase* Item);
 	void SetOverlapItem(AItemBase* Item) { OverlapItem = Item; }
+
+	// debug
+	
+	static FString RoleToString(ENetRole Role)
+	{
+		const UEnum* Enum = FindObject<UEnum>(ANY_PACKAGE, TEXT("ENetRole"), true);
+		return Enum ? Enum->GetNameByValue((int64)Role).ToString() : FString(TEXT("UnknownRole"));
+	}
+
+
+	
+protected:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	virtual bool IsLocallyControlled() const override;
+	
 protected:
 	
 	UPROPERTY(VisibleAnywhere)
@@ -113,7 +129,7 @@ protected:
 	UInputAction* ClimbMoveAction;
 	
 	// States
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient, Replicated)
 	FGameplayTag Gait{XGaitTags::Running};
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
@@ -141,6 +157,9 @@ public:
 
 	ACharacterBase(const FObjectInitializer& ObjInit);
 
+	UFUNCTION(Server, Reliable)
+	void Server_SetGait(FGameplayTag NewGait);
+	
 	// Attribute Getter
 	UFUNCTION(BlueprintCallable)
 	virtual float GetHealth() const;		// idk why in actionRPG it's virtual

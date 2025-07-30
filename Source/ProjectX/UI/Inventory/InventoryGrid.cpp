@@ -84,7 +84,7 @@ void UInventoryGrid::NativeOnInitialized()
 void UInventoryGrid::NativeConstruct()
 {
 	Super::NativeConstruct();
-	ConstructInventoryGrid();
+	//ConstructInventoryGrid();
 }
 
 void UInventoryGrid::ConstructInventoryGrid()

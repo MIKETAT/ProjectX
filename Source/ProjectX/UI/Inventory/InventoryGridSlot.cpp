@@ -59,13 +59,11 @@ FReply UInventoryGridSlot::NativeOnMouseButtonDown(const FGeometry& InGeometry, 
 	{
 		if (HasItem())
 		{
-			/*HideTooltip();
+			HideTooltip();
 			if (!SlotMenuAnchor->IsOpen())
 			{
 				SlotMenuAnchor->Open(true);
-			}*/
-			// Test
-			
+			}
 		}
 		return FReply::Handled();
 	}
@@ -101,7 +99,6 @@ void UInventoryGridSlot::NativeOnDragDetected(const FGeometry& InGeometry, const
 	UDragDropOperation*& OutOperation)
 {
 	Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
-	// Valid Slot(HasItem)
 	if (HasItem())
 	{
 		HideTooltip();

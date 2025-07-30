@@ -19,6 +19,7 @@
 #include "Component/XCharacterMovementComponent.h"
 #include "Components/ArrowComponent.h"
 #include "Items/ItemBase.h"
+#include "Net/UnrealNetwork.h"
 #include "Settings/ClimbSettings.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -43,7 +44,9 @@ ACharacterBase::ACharacterBase(const FObjectInitializer& ObjInit)
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 	GetCharacterMovement()->bAlwaysCheckFloor = true;
 
-
+	GetCharacterMovement()->PrimaryComponentTick.bCanEverTick = true;
+	GetCharacterMovement()->SetIsReplicated(true);
+	
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
@@ -67,9 +70,25 @@ ACharacterBase::ACharacterBase(const FObjectInitializer& ObjInit)
 	DebugArrow->SetupAttachment(RootComponent);
 	DebugArrow->SetVisibility(true);
 	DebugArrow->SetHiddenInGame(false);
+
 	
 }
 
+void ACharacterBase::Server_SetGait_Implementation(FGameplayTag NewGait)
+{
+	Gait = NewGait;
+	if (Gait == XGaitTags::Walking)
+	{
+		GetCharacterMovement()->MaxWalkSpeed = 375.f;
+	} else if (Gait == XGaitTags::Running)
+	{
+		GetCharacterMovement()->MaxWalkSpeed = 500.f;
+	} else if (Gait == XGaitTags::Sprinting)
+	{
+		// todo: do not hard code
+		GetCharacterMovement()->MaxWalkSpeed = 700.f;
+	}
+}
 
 void ACharacterBase::BeginPlay()
 {
@@ -86,6 +105,27 @@ void ACharacterBase::BeginPlay()
 		ClimbComp->OnHangStateChanged.AddDynamic(this, &ThisClass::OnHangStateChanged);
 	}
 	AnimInstance = Cast<UXAnimInstance>(GetMesh()->GetAnimInstance());
+
+	// debug
+
+	const auto* MoveComp = GetCharacterMovement();
+	ENetworkSmoothingMode Mode = MoveComp->NetworkSmoothingMode;
+	UE_LOG(LogTemp, Warning,
+		TEXT(">>> [%s] NetworkSmoothingMode = %s"),
+		*GetNameSafe(this),
+		*UEnum::GetValueAsString(TEXT("Engine.ENetworkSmoothingMode"), Mode)
+	);
+
+	
+	/*if (GetLocalRole() == ROLE_Authority)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("********** On ROLE_Authority  MovementComponent class = %s    *******"), *GetCharacterMovement()->GetClass()->GetName());
+	} else if (GetLocalRole() == ROLE_AutonomousProxy) {
+		UE_LOG(LogTemp, Warning, TEXT("********** On ROLE_AutonomousProxy  MovementComponent class = %s    *******"), *GetCharacterMovement()->GetClass()->GetName());
+	} else if (GetLocalRole() == ROLE_SimulatedProxy)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("********** On ROLE_SimulatedProxy  MovementComponent class = %s    *******"), *GetCharacterMovement()->GetClass()->GetName());
+	}*/
 }
 
 float ACharacterBase::GetHealth() const
@@ -205,6 +245,21 @@ void ACharacterBase::AddItem(AItemBase* Item)
 	
 }
 
+void ACharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ThisClass, Gait);
+}
+
+bool ACharacterBase::IsLocallyControlled() const
+{
+	if (HasAuthority() && GetLocalRole() == ROLE_AutonomousProxy)
+	{
+		return false;
+	}
+	return Super::IsLocallyControlled();
+}
+
 UAbilitySystemComponent* ACharacterBase::GetAbilitySystemComponent() const
 {
 	return ASC;
@@ -215,6 +270,19 @@ void ACharacterBase::PossessedBy(AController* NewController)
 	Super::PossessedBy(NewController);
 	InitializePassiveAbilities();
 	InitializePassiveEffects();
+
+
+	ENetRole ALocalRole = GetLocalRole();
+	ENetRole ARemoteRole = GetRemoteRole();
+	bool bIsLocalCtrl = IsLocallyControlled();
+
+	UE_LOG(LogTemp, Warning,
+	  TEXT("[PossessedBy] Controller=%s | Role=%s | RemoteRole=%s | IsLocallyControlled=%d"),
+	  *GetNameSafe(NewController),
+	  *RoleToString(ALocalRole),
+	  *RoleToString(ARemoteRole),
+	  bIsLocalCtrl ? 1 : 0);
+	
 }
 
 // initialize passive GA
@@ -321,16 +389,26 @@ void ACharacterBase::Input_OnStopJumping()
 
 void ACharacterBase::Input_OnMove(const FInputActionValue& Value)
 {
-	FVector2D MovementVector = Value.Get<FVector2D>();
-	if (Controller != nullptr)
+	if (Controller && Controller->IsLocalController()
+		&& GetLocalRole() == ROLE_AutonomousProxy)
 	{
-		const FRotator Rotation = Controller->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-		AddMovementInput(ForwardDirection, MovementVector.Y);
-		AddMovementInput(RightDirection, MovementVector.X);
+		UE_LOG(LogTemp, Warning,
+			TEXT("[MoveForward][CLIENT] Value=%s"), *Value.ToString());
+		FVector2D MovementVector = Value.Get<FVector2D>();
+		if (Controller != nullptr)
+		{
+			const FRotator Rotation = Controller->GetControlRotation();
+			const FRotator YawRotation(0, Rotation.Yaw, 0);
+			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+			AddMovementInput(ForwardDirection, MovementVector.Y);
+			AddMovementInput(RightDirection, MovementVector.X);
+		}
+		
+		
 	}
+
+
 }
 
 void ACharacterBase::Input_OnLook(const FInputActionValue& Value)
@@ -345,6 +423,7 @@ void ACharacterBase::Input_OnLook(const FInputActionValue& Value)
 
 void ACharacterBase::Input_OnWalk()
 {
+	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("Input_OnWalk"));
 	if (Gait == XGaitTags::Walking)
 	{
 		Gait = XGaitTags::Running;
@@ -355,13 +434,15 @@ void ACharacterBase::Input_OnWalk()
 		Gait = XGaitTags::Walking;
 		GetCharacterMovement()->MaxWalkSpeed = 375.f;
 	}
-	UE_LOG(LogTemp, Error, TEXT("On Walk"));
+	Server_SetGait(Gait);
 }
 
 void ACharacterBase::Input_OnSprint(const FInputActionValue& Value)
 {
-	// input is a bool
-	Gait = Value.Get<bool>() ? XGaitTags::Sprinting : XGaitTags::Running; 
+	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("Input_OnSprint"));
+	Gait = Value.Get<bool>() ? XGaitTags::Sprinting : XGaitTags::Running;
+	GetCharacterMovement()->MaxWalkSpeed = 700.f;
+	Server_SetGait(Gait);
 }
 
 void ACharacterBase::Input_OnClimbUp(const FInputActionValue& Value)

@@ -13,6 +13,8 @@ class AProjectXGameMode : public AGameModeBase
 
 public:
 	AProjectXGameMode();
+protected:
+	virtual void PostLogin(APlayerController* NewPlayer) override;
 };
 
 

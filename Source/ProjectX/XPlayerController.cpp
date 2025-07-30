@@ -3,6 +3,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Component/InventoryComponent.h"
 #include "Items/ItemBase.h"
+#include "UI/Inventory/InventoryGrid.h"
 #include "UI/Inventory/InventoryWidget.h"
 
 void AXPlayerController::RemoveItemTest_Implementation(int32 Index)
@@ -11,8 +12,37 @@ void AXPlayerController::RemoveItemTest_Implementation(int32 Index)
 	InventoryComp->RemoveItemAtIndex(Index);
 }
 
+void AXPlayerController::AcknowledgePossession(APawn* P)
+{
+	Super::AcknowledgePossession(P);
+	// 取得网络模式和角色
+	const ENetMode ANetMode = GetNetMode();
+	const ENetRole ALocalRole = P->GetLocalRole();
+	const ENetRole ARemoteRole = P->GetRemoteRole();
+
+	// 只打印真正客户端那条
+	if (ANetMode == NM_Client && ALocalRole == ROLE_AutonomousProxy)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[AcknowledgePossession][CLIENT] Pawn=%s Role=%s RemoteRole=%s"),
+			*GetNameSafe(P),
+			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), ALocalRole),
+			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), ARemoteRole));
+	}
+	// 只打印服务器那条
+	else if (HasAuthority() && ALocalRole == ROLE_Authority)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[AcknowledgePossession][SERVER] Pawn=%s Role=%s RemoteRole=%s"),
+			*GetNameSafe(P),
+			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), ALocalRole),
+			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), ARemoteRole));
+	}
+}
+
 void AXPlayerController::OnPossess(APawn* InPawn)
 {
+
 	Super::OnPossess(InPawn);
 }
 
@@ -20,6 +50,14 @@ void AXPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 	ConstructInventoryWidget();
+	if (HasAuthority())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Server PC BeginPlay: HasPlayer=%d, PC Name=%s"), Player != nullptr, *GetName());	
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Client PC BeginPlay: HasPlayer=%d, PC Name=%s"), Player != nullptr, *GetName());
+	}
 }
 
 void AXPlayerController::PostInitializeComponents()
@@ -108,9 +146,11 @@ UE_ENABLE_OPTIMIZATION
 
 void AXPlayerController::ConstructInventoryWidget()
 {
-	if (!IsLocalController() || !IsValid(InventoryWidgetClass)) {
+	if (!IsLocalController() || HasAuthority() || !IsValid(InventoryWidgetClass)) {
 		return;
 	}
+	UE_LOG(LogTemp, Warning, TEXT("ConstructInventoryWidget Before CreateWidget: Local=%d, HasPlayer=%d, Controller=%s"),
+   IsLocalController(), Player != nullptr, *GetName());
 	InventoryWidget = CreateWidget<UInventoryWidget>(this, InventoryWidgetClass);
 	if (!InventoryWidget)
 	{
@@ -119,6 +159,14 @@ void AXPlayerController::ConstructInventoryWidget()
 	}
 	InventoryWidget->SetVisibility(ESlateVisibility::Hidden);
 	InventoryWidget->AddToViewport();
+}
+
+void AXPlayerController::ConstructGridWidget()
+{
+	ensure(InventoryWidget);
+	ensure(InventoryWidget->EquipmentGrid && InventoryWidget->ConsumablesGrid);
+	InventoryWidget->EquipmentGrid->ConstructInventoryGrid();
+	InventoryWidget->ConsumablesGrid->ConstructInventoryGrid();
 }
 
 

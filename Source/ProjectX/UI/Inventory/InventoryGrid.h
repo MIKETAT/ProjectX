@@ -35,12 +35,13 @@ public:
 	bool CanMatchCategory(EItemCategory ItemCategory) const { return GridCategory == ItemCategory; }
 
 	UInventoryGridSlot* GetSlotWidgetBySlotIndex(int32 SlotIndex);
+	
+	void ConstructInventoryGrid();
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
 	
 private:
-	void ConstructInventoryGrid();
 // Variables
 public:
 	UPROPERTY()
@@ -72,5 +73,4 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category = "Inventory")
 	float TileSize{50.f};
-
 };

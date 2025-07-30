@@ -43,13 +43,14 @@ public:
 	// TEST
 	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "test")
 	void RemoveItemTest(int32 Index);
-	
+	virtual void AcknowledgePossession(APawn* P) override;
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void BeginPlay() override;
 	virtual void PostInitializeComponents() override;
 	
 	void ConstructInventoryWidget();
+	void ConstructGridWidget();
 
 // Variables
 	UPROPERTY(BlueprintReadWrite, Category= HUD)
