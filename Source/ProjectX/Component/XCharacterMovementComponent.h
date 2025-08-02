@@ -47,8 +47,6 @@ public:
 	virtual FSavedMovePtr AllocateNewMove() override;
 };
 
-
-
 UCLASS()
 class PROJECTX_API UXCharacterMovementComponent : public UCharacterMovementComponent
 {
@@ -57,14 +55,6 @@ public:
 	friend FSavedMove_HangingMovement;
 
 	UXCharacterMovementComponent(const FObjectInitializer& ObjInit);
-
-	// debug
-	
-	static FString RoleToString(ENetRole Role)
-	{
-		const UEnum* Enum = FindObject<UEnum>(ANY_PACKAGE, TEXT("ENetRole"), true);
-		return Enum ? Enum->GetNameByValue((int64)Role).ToString() : FString(TEXT("UnknownRole"));
-	}
 	
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
@@ -72,17 +62,12 @@ public:
 	void SetWallNormal(FVector NewWallNormal);
 	void SetHangInput(float Input);
 	virtual void InitializeComponent() override;
-	
-	virtual void PerformMovement(float DeltaTime) override;
-	virtual void ServerMove(float TimeStamp, FVector_NetQuantize10 InAccel, FVector_NetQuantize100 ClientLoc, uint8 CompressedMoveFlags, uint8 ClientRoll, uint32 View, UPrimitiveComponent* ClientMovementBase, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
-	
+
 protected:
 	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
 	virtual FVector ConstrainAnimRootMotionVelocity(const FVector& RootMotionVelocity, const FVector& CurrentVelocity) const override;
 	void PhysHanging(float deltaTime, int32 Iterations);
-
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 // Variable
 protected:

@@ -12,34 +12,6 @@ void AXPlayerController::RemoveItemTest_Implementation(int32 Index)
 	InventoryComp->RemoveItemAtIndex(Index);
 }
 
-void AXPlayerController::AcknowledgePossession(APawn* P)
-{
-	Super::AcknowledgePossession(P);
-	// 取得网络模式和角色
-	const ENetMode ANetMode = GetNetMode();
-	const ENetRole ALocalRole = P->GetLocalRole();
-	const ENetRole ARemoteRole = P->GetRemoteRole();
-
-	// 只打印真正客户端那条
-	if (ANetMode == NM_Client && ALocalRole == ROLE_AutonomousProxy)
-	{
-		UE_LOG(LogTemp, Warning,
-			TEXT("[AcknowledgePossession][CLIENT] Pawn=%s Role=%s RemoteRole=%s"),
-			*GetNameSafe(P),
-			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), ALocalRole),
-			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), ARemoteRole));
-	}
-	// 只打印服务器那条
-	else if (HasAuthority() && ALocalRole == ROLE_Authority)
-	{
-		UE_LOG(LogTemp, Warning,
-			TEXT("[AcknowledgePossession][SERVER] Pawn=%s Role=%s RemoteRole=%s"),
-			*GetNameSafe(P),
-			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), ALocalRole),
-			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), ARemoteRole));
-	}
-}
-
 void AXPlayerController::OnPossess(APawn* InPawn)
 {
 
@@ -50,14 +22,6 @@ void AXPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 	ConstructInventoryWidget();
-	if (HasAuthority())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Server PC BeginPlay: HasPlayer=%d, PC Name=%s"), Player != nullptr, *GetName());	
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Client PC BeginPlay: HasPlayer=%d, PC Name=%s"), Player != nullptr, *GetName());
-	}
 }
 
 void AXPlayerController::PostInitializeComponents()
@@ -77,8 +41,10 @@ void AXPlayerController::ToggleInventory()
 	if (!IsValid(InventoryWidget))
 	{
 		UE_LOG(LogTemp, Error, TEXT("InventoryWidget is not valid!"));
+		ConstructGridWidget();
 		return;
 	}
+	ConstructGridWidget();
 	InventoryWidget->ToggleWindow();
 	SetInputModeByWidgetVisibility();
 	// todo: broadcast event
@@ -111,7 +77,6 @@ void AXPlayerController::UI_MoveInventoryItem_Implementation(int32 SourceIndex, 
 	{
 		InventoryComp->Server_UI_MoveInventoryItem(SourceIndex, TargetIndex);		
 	}
-
 }
 
 void AXPlayerController::SetInputModeByWidgetVisibility()
@@ -132,7 +97,6 @@ void AXPlayerController::SetInputModeByWidgetVisibility()
 	}
 }
 
-UE_DISABLE_OPTIMIZATION
 void AXPlayerController::PickupItem_Implementation(AItemBase* Item)
 {
 	if (InventoryComp && Item)
@@ -149,8 +113,6 @@ void AXPlayerController::ConstructInventoryWidget()
 	if (!IsLocalController() || HasAuthority() || !IsValid(InventoryWidgetClass)) {
 		return;
 	}
-	UE_LOG(LogTemp, Warning, TEXT("ConstructInventoryWidget Before CreateWidget: Local=%d, HasPlayer=%d, Controller=%s"),
-   IsLocalController(), Player != nullptr, *GetName());
 	InventoryWidget = CreateWidget<UInventoryWidget>(this, InventoryWidgetClass);
 	if (!InventoryWidget)
 	{

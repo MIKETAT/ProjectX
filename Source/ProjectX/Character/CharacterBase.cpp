@@ -115,17 +115,6 @@ void ACharacterBase::BeginPlay()
 		*GetNameSafe(this),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetworkSmoothingMode"), Mode)
 	);
-
-	
-	/*if (GetLocalRole() == ROLE_Authority)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("********** On ROLE_Authority  MovementComponent class = %s    *******"), *GetCharacterMovement()->GetClass()->GetName());
-	} else if (GetLocalRole() == ROLE_AutonomousProxy) {
-		UE_LOG(LogTemp, Warning, TEXT("********** On ROLE_AutonomousProxy  MovementComponent class = %s    *******"), *GetCharacterMovement()->GetClass()->GetName());
-	} else if (GetLocalRole() == ROLE_SimulatedProxy)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("********** On ROLE_SimulatedProxy  MovementComponent class = %s    *******"), *GetCharacterMovement()->GetClass()->GetName());
-	}*/
 }
 
 float ACharacterBase::GetHealth() const
