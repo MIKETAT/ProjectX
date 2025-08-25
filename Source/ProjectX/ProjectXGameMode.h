@@ -10,11 +10,8 @@ UCLASS(minimalapi)
 class AProjectXGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
-
 public:
 	AProjectXGameMode();
-protected:
-	virtual void PostLogin(APlayerController* NewPlayer) override;
 };
 
 

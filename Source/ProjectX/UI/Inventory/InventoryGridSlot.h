@@ -75,7 +75,6 @@ protected:
 private:
 	void UpdateSlotTexture();
 	void UpdateSlotStackCountText();
-	
 	bool CanMatchItemType(TSubclassOf<UItemDefinition> Definition) const;
 	int32 GetRemainingCapacity() const;
 	

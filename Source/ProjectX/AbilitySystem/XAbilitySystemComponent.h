@@ -16,4 +16,5 @@ class PROJECTX_API UXAbilitySystemComponent : public UAbilitySystemComponent
 	GENERATED_BODY()
 public:
 	UXAbilitySystemComponent() {}
+	virtual void InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor) override;
 };

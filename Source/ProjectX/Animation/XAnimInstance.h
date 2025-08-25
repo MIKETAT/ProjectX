@@ -3,12 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayEffectTypes.h"
 #include "XGameplayTags.h"
 #include "Animation/AnimInstance.h"
-#include "XGameplayTags.h"
 #include "Component/ClimbComponent.h"
 #include "XAnimInstance.generated.h"
 
+class UXAbilitySystemComponent;
 enum class EHangMoveDirection : uint8;
 class ACharacterBase;
 /**
@@ -23,20 +24,23 @@ class PROJECTX_API UXAnimInstance : public UAnimInstance
 public:
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
-
+	virtual void InitializeWithAbilitySystemComponent(UAbilitySystemComponent* ASC);
+	
 	void SetHangState(bool NewState);
 	void SetHangMoveDirection(EHangMoveDirection MoveDirection);
-private:
-	
+
 protected:
+private:
 	
 	
 // variable
 public:
-protected:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
-	TObjectPtr<ACharacterBase> Character;
+	UPROPERTY(EditDefaultsOnly, Category = "GameplayTags")
+	FGameplayTagBlueprintPropertyMap GameplayTagPropertyMap;
 	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)
+	TObjectPtr<ACharacterBase> OwnerCharacter;
+
 	// Location
 	UPROPERTY(BlueprintReadWrite, Category = "Location")
 	FVector WorldLocation;
@@ -45,7 +49,7 @@ protected:
 	FVector WorldLocation2D;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Location")
-	float DisplacementSinceLastUpdate = 0.f;		// 距离上次更新的位移大小
+	float DisplacementSinceLastUpdate = 0.f;	// 距离上次更新的位移大小
 
 	UPROPERTY(BlueprintReadWrite, Category = "Location")
 	float DisplacementSpeed = 0.f;				// 位移速率
@@ -94,10 +98,6 @@ protected:
 	
 	UPROPERTY(BlueprintReadWrite)
 	bool IsFirstUpdate = true;
-
-	// State
-	UPROPERTY(BlueprintReadWrite, Category = "State")
-	FGameplayTag Gait{XGaitTags::Running};
 
 	UPROPERTY(BlueprintReadWrite, Category = "State", meta = (AllowPrivateAccess = "true"))
 	bool IsHanging{false};

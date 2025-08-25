@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -7,7 +5,6 @@
 #include "ClimbComponent.generated.h"
 
 class ACharacterBase;
-
 
 UENUM(BlueprintType)
 enum class EHangMoveDirection : uint8
@@ -33,16 +30,13 @@ protected:
 	virtual void BeginPlay() override;
 
 public:	
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
 	virtual void InitializeComponent() override;
 	
 	// Check if Character Can Hang on a Wall
 	UFUNCTION(BlueprintCallable, Category = "Climb", Meta = (ReturnDisplayName = "CanHang"))
 	bool HangTracer();
 
-	UFUNCTION(BlueprintCallable, Category = "Climb")
+	UFUNCTION(Category = "Climb")
 	void GrabLedge();
 	
 // Variables
@@ -68,11 +62,7 @@ private:
 public:
 	UPROPERTY(BlueprintReadWrite, Category = "States")
 	bool bIsHanging{false};
-
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHangStateChanged, bool, bNewState);
-	UPROPERTY(BlueprintAssignable, Category = "Climb")
-	FOnHangStateChanged OnHangStateChanged;
-
+	
 	bool CanClimbMove(EHangMoveDirection MoveDirection);
 	
 	UFUNCTION(BlueprintCallable)
@@ -80,5 +70,5 @@ public:
 
 	// Callback
 	UFUNCTION()
-	void OnMoveCompoComplete();
+	void OnMoveComponentComplete();
 };

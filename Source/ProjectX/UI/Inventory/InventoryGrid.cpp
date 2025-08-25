@@ -101,9 +101,6 @@ void UInventoryGrid::ConstructInventoryGrid()
 			ItemSlot->SetSlotIndex(SlotIndex);
 			SlotWidgetMap.Add(SlotIndex, ItemSlot);
 			UUniformGridSlot* UniformSlot = UniformGridPanel->AddChildToUniformGrid(ItemSlot, i, j);
-			ensure(UniformSlot);
-			UniformSlot->SetHorizontalAlignment(HAlign_Fill);
-			UniformSlot->SetVerticalAlignment(VAlign_Fill);
 		}
 	}
 }

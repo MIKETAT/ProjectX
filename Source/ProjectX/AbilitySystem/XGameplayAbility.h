@@ -14,9 +14,11 @@ class PROJECTX_API UXGameplayAbility : public UGameplayAbility
 public:
 	UXGameplayAbility();
 
-	// Input   ...no idea why i write it
+	// Input   ...no idea why I write it
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category= GAS)
 	EAbilityInputID AbilityInputID = EAbilityInputID::None;
 
-	
+	// montage related to GA, it can be null
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<UAnimMontage> MontageToPlay;
 };

@@ -21,10 +21,13 @@ struct FClimbTraceSetting
 	float TraceCapsuleRadius{42.f};
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
-	float TargetLocationOffset{30.f};	// 从上至下的检测需要向墙内部延伸一段距离而不是在边缘进行检测
+	float LedgeOffset{5.f};	// 从上至下的检测需要向墙内部延伸一段距离而不是在边缘进行检测
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
+	float WallAngleThreshold{5.f};
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
-	FVector2f LedgeHeight{50.f, 250.f};
+	FVector2f LedgeHeight{100.f, 200.f};	// 相对于CapsuleComponent Location的高度。
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb")
 	float ClimbLedgeThreshold{150.f};

@@ -10,15 +10,14 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "XPlayerController.h"
+#include "XPlayerState.h"
 #include "AbilitySystem/XAbilitySystemComponent.h"
 #include "AbilitySystem/XAttributeSet.h"
 #include "AbilitySystem/XGameplayAbility.h"
 #include "Animation/XAnimInstance.h"
 #include "Component/ClimbComponent.h"
-#include "Component/InventoryComponent.h"
 #include "Component/XCharacterMovementComponent.h"
 #include "Components/ArrowComponent.h"
-#include "Items/ItemBase.h"
 #include "Net/UnrealNetwork.h"
 #include "Settings/ClimbSettings.h"
 
@@ -28,135 +27,116 @@ ACharacterBase::ACharacterBase(const FObjectInitializer& ObjInit)
  : Super(ObjInit.SetDefaultSubobjectClass<UXCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
 	SetReplicates(true);
-	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+	GetCapsuleComponent()->InitCapsuleSize(42.f, 92.0f);
 	SetRootComponent(GetCapsuleComponent());
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
-	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
-	GetCharacterMovement()->JumpZVelocity = 700.f;
-	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = 500.f;
-	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
-	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
-	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
-	GetCharacterMovement()->bAlwaysCheckFloor = true;
-
-	GetCharacterMovement()->PrimaryComponentTick.bCanEverTick = true;
-	GetCharacterMovement()->SetIsReplicated(true);
+	CharMov = Cast<UXCharacterMovementComponent>(GetCharacterMovement());
+	ensure(CharMov);
+	
+	CharMov->bOrientRotationToMovement = false; // Character moves in the direction of input...	
+	CharMov->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
+	CharMov->JumpZVelocity = 700.f;
+	CharMov->AirControl = 0.35f;
+	CharMov->MaxWalkSpeed = 200.f;
+	CharMov->MinAnalogWalkSpeed = 20.f;
+	CharMov->BrakingDecelerationWalking = 2000.f;
+	CharMov->BrakingDecelerationFalling = 1500.0f;
+	CharMov->bAlwaysCheckFloor = true;
+	CharMov->PrimaryComponentTick.bCanEverTick = true;
+	CharMov->SetIsReplicated(true);
+	CharMov->bUseControllerDesiredRotation = true;
+	CharMov->bAllowPhysicsRotationDuringAnimRootMotion = true;	// we need this to allow character to rotate when playing RMS
 	
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
 	CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
-
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
-	// GAS
-	ASC = CreateDefaultSubobject<UXAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
-	ASC->SetIsReplicated(true);
-	ASC->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
-	AttributeSet = CreateDefaultSubobject<UXAttributeSet>(TEXT("AttributeSet"));
-
-	// Climb Component
-	ClimbComp = CreateDefaultSubobject<UClimbComponent>(TEXT("ClimbComp"));
-	
 	// Debug Arrow
 	DebugArrow = CreateDefaultSubobject<UArrowComponent>(TEXT("DebugArrow"));
 	DebugArrow->SetupAttachment(RootComponent);
 	DebugArrow->SetVisibility(true);
 	DebugArrow->SetHiddenInGame(false);
-
-	
 }
 
-void ACharacterBase::Server_SetGait_Implementation(FGameplayTag NewGait)
+FCollisionQueryParams ACharacterBase::GetIgnoreCharacterParams() const
 {
-	Gait = NewGait;
-	if (Gait == XGaitTags::Walking)
-	{
-		GetCharacterMovement()->MaxWalkSpeed = 375.f;
-	} else if (Gait == XGaitTags::Running)
-	{
-		GetCharacterMovement()->MaxWalkSpeed = 500.f;
-	} else if (Gait == XGaitTags::Sprinting)
-	{
-		// todo: do not hard code
-		GetCharacterMovement()->MaxWalkSpeed = 700.f;
-	}
+	FCollisionQueryParams Params;
+	TArray<AActor*> CharacterChildren;
+	GetAllChildActors(CharacterChildren);
+	Params.AddIgnoredActors(CharacterChildren);
+	Params.AddIgnoredActor(this);
+	return Params;
+}
+
+void ACharacterBase::Jump()
+{
+	bPressXJump = true;
+	Super::Jump();
+	// override bPressedJump to perform Mantle and Climb
+	bPressedJump = false;
+}
+
+void ACharacterBase::StopJumping()
+{
+	bPressXJump = false;
+	Super::StopJumping();
 }
 
 void ACharacterBase::BeginPlay()
-{
+{	
 	Super::BeginPlay();
 	SetReplicateMovement(true);
-	ensure(ASC);
-	ASC->InitAbilityActorInfo(this, this);
-
-	// Register Attribute Change Event
-	ASC->GetGameplayAttributeValueChangeDelegate(UXAttributeSet::GetHealthAttribute()).AddUObject(this, &ACharacterBase::OnHealthChanged);
 	
-	if (ClimbComp)
-	{
-		ClimbComp->OnHangStateChanged.AddDynamic(this, &ThisClass::OnHangStateChanged);
-	}
 	AnimInstance = Cast<UXAnimInstance>(GetMesh()->GetAnimInstance());
-
-	// debug
-
-	const auto* MoveComp = GetCharacterMovement();
-	ENetworkSmoothingMode Mode = MoveComp->NetworkSmoothingMode;
-	UE_LOG(LogTemp, Warning,
-		TEXT(">>> [%s] NetworkSmoothingMode = %s"),
-		*GetNameSafe(this),
-		*UEnum::GetValueAsString(TEXT("Engine.ENetworkSmoothingMode"), Mode)
-	);
+	if (!CharMov)
+	{
+		CharMov = Cast<UXCharacterMovementComponent>(GetCharacterMovement());
+	}
+	if (CharMov)
+	{
+		CharMov->OnHangStateChanged.AddDynamic(this, &ThisClass::OnHangStateChanged);
+	}
 }
 
-float ACharacterBase::GetHealth() const
+void ACharacterBase::OnRunning(const FGameplayTag Tag, int32 NewCount)
 {
-	if (!AttributeSet)		return 0.f;
-	return AttributeSet->GetHealth();
+	CharMov = Cast<UXCharacterMovementComponent>(GetCharacterMovement());
+	ensure(CharMov);
+	if (!Tag.MatchesTag(XGaitTags::Running))
+	{
+		return;
+	}
+	if (NewCount > 0)
+	{
+		CharMov->SetRunning(true);	
+	} else
+	{
+		CharMov->SetRunning(false);
+	}
 }
 
-float ACharacterBase::GetMaxHealth() const
+void ACharacterBase::OnSprinting(const FGameplayTag Tag, int32 NewCount)
 {
-	if (!AttributeSet)		return 0.f;
-	return AttributeSet->GetMaxHealth();
-}
-
-float ACharacterBase::GetMana() const
-{
-	if (!AttributeSet)		return 0.f;
-	return AttributeSet->GetMana();
-}
-
-float ACharacterBase::GetMaxMana() const
-{
-	if (!AttributeSet)		return 0.f;
-	return AttributeSet->GetMaxMana();
-}
-
-float ACharacterBase::GetStamina() const
-{
-	if (!AttributeSet)		return 0.f;
-	return AttributeSet->GetStamina();
-}
-
-float ACharacterBase::GetMaxStamina() const
-{
-	if (!AttributeSet)		return 0.f;
-	return AttributeSet->GetMaxStamina();
-}
-
-void ACharacterBase::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-	
+	CharMov = Cast<UXCharacterMovementComponent>(GetCharacterMovement());
+	ensure(CharMov);
+	if (!Tag.MatchesTag(XGaitTags::Sprinting))
+	{
+		return;
+	}
+	if (NewCount > 0)
+	{
+		CharMov->SetSprinting(true);
+	} else
+	{
+		CharMov->SetSprinting(false);
+	}
 }
 
 void ACharacterBase::SelectMappingContext()
@@ -165,7 +145,7 @@ void ACharacterBase::SelectMappingContext()
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
-			if (bIsHanging)
+			if (GetIsHanging())
 			{
 				Subsystem->RemoveMappingContext(DefaultMappingContext);
 				Subsystem->AddMappingContext(HangingMappingContext, 0);
@@ -178,47 +158,33 @@ void ACharacterBase::SelectMappingContext()
 	}
 }
 
-void ACharacterBase::OnHealthChanged(const FOnAttributeChangeData& Data)
-{
-	HealthChangeEvent.Broadcast(Data.NewValue);
-}
-
 void ACharacterBase::OnHangStateChanged(bool NewState)
 {
-	if (bIsHanging == NewState)
-	{
-		return;
-	}
-	bIsHanging = NewState;
-	if (AnimInstance)
-	{
-		AnimInstance->SetHangState(NewState);
-	}
 	SelectMappingContext();
+	UE_LOG(LogTemp, Error, TEXT("OnHangStateChanged BoardCast, GetIsHanging() = %d"), GetIsHanging());
 }
 
 void ACharacterBase::OnClimbUpMontageEnded(UAnimMontage* ClimbUpMontage, bool Interrupted)
 {
-	ensure(ClimbComp);
-	ensure(GetCharacterMovement());
-	
-	if (ClimbUpMontage && !Interrupted)
+	ensure(CharMov);
+	// 如果 Interrupted 也认为离开了Hanging状态
+	if (ClimbUpMontage)
 	{
-		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-		ClimbComp->SetHangState(false);
+		CharMov->SetMovementMode(MOVE_Walking);
+		CharMov->SetWantsToHanging(false);
 	} else
 	{
-		GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<uint8>(ECustomMoveMode::CMove_Hanging));
-		ClimbComp->SetHangState(true);
+		CharMov->SetMovementMode(MOVE_Custom, static_cast<uint8>(ECustomMoveMode::CMove_Hanging));
+		CharMov->SetWantsToHanging(true);
 	}
 }
 
 void ACharacterBase::ResetClimbMoveInput()
 {
 	ensure(AnimInstance);
-	if (UXCharacterMovementComponent* UxCharacterMovementComp = Cast<UXCharacterMovementComponent>(GetCharacterMovement()))
+	if (CharMov)
 	{
-		UxCharacterMovementComp->SetHangInput(0);
+		CharMov->SetHangInput(0);
 		AnimInstance->SetHangMoveDirection(EHangMoveDirection::None);
 	}
 }
@@ -237,71 +203,123 @@ void ACharacterBase::AddItem(AItemBase* Item)
 void ACharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ThisClass, Gait);
 }
 
-bool ACharacterBase::IsLocallyControlled() const
+void ACharacterBase::OnRep_PlayerState()
 {
-	if (HasAuthority() && GetLocalRole() == ROLE_AutonomousProxy)
+	Super::OnRep_PlayerState();
+	InitAbilityActorInfo();
+	
+	if (AXPlayerState* PS = GetPlayerState<AXPlayerState>())
 	{
-		return false;
+		AttributeSet = PS->GetAttributeSet();
 	}
-	return Super::IsLocallyControlled();
+	if (AXPlayerController* PC = Cast<AXPlayerController>(GetController()))
+	{
+		PC->CreateHUD();
+	}
 }
 
-UAbilitySystemComponent* ACharacterBase::GetAbilitySystemComponent() const
-{
-	return ASC;
-}
-
+// Server only
 void ACharacterBase::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
-	InitializePassiveAbilities();
-	InitializePassiveEffects();
-
-
-	ENetRole ALocalRole = GetLocalRole();
-	ENetRole ARemoteRole = GetRemoteRole();
-	bool bIsLocalCtrl = IsLocallyControlled();
-
-	UE_LOG(LogTemp, Warning,
-	  TEXT("[PossessedBy] Controller=%s | Role=%s | RemoteRole=%s | IsLocallyControlled=%d"),
-	  *GetNameSafe(NewController),
-	  *RoleToString(ALocalRole),
-	  *RoleToString(ARemoteRole),
-	  bIsLocalCtrl ? 1 : 0);
+	InitAbilityActorInfo();
 	
-}
-
-// initialize passive GA
-void ACharacterBase::InitializePassiveAbilities()
-{
-	ensure(ASC);
-	for (TSubclassOf<UXGameplayAbility>& Ability : PassiveGameplayAbilities)
+	// 对于没有PlayerController的AI敌人，这里是初始化Owner 和 Avatar 的时机
+	if (AXPlayerState* PS = GetPlayerState<AXPlayerState>())
 	{
-		ASC->GiveAbility(FGameplayAbilitySpec(Ability));
+		AttributeSet = PS->GetAttributeSet();
+		InitializePassiveAbilities();
+		InitializePassiveEffects();
+		
+		if (AXPlayerController* PC = Cast<AXPlayerController>(NewController))
+		{
+			PC->CreateHUD();
+			SetOwner(NewController);
+		}	
 	}
 }
 
-// initialize passive GE
+void ACharacterBase::BindASCInput()
+{
+	// GAS
+	if (AbilitySystemComponent.IsValid() && IsValid(InputComponent))
+	{
+		const FTopLevelAssetPath InputEnumPath(
+			TEXT("/Script/ProjectX"),       
+			TEXT("EAbilityInputID")  
+		);
+		FGameplayAbilityInputBinds Binds(
+			TEXT("Confirm"),
+			TEXT("Cancel"),
+			InputEnumPath,
+			static_cast<uint8>(EAbilityInputID::Confirm),
+			static_cast<uint8>(EAbilityInputID::Cancel)
+		);
+		AbilitySystemComponent->BindAbilityActivationToInputComponent(InputComponent,Binds);
+	}
+}
+
 void ACharacterBase::InitializePassiveEffects()
 {
-	ensure(ASC);
+	if (GetLocalRole() != ROLE_Authority || !AbilitySystemComponent.IsValid())
+	{
+		return;
+	}
 	for (TSubclassOf<UGameplayEffect>& Effect : PassiveGameplayEffects)
 	{
-		FGameplayEffectContextHandle ContextHandle = ASC->MakeEffectContext();
+		FGameplayEffectContextHandle ContextHandle = AbilitySystemComponent->MakeEffectContext();
 		ContextHandle.AddSourceObject(this);
 
-		FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(Effect, 1, ContextHandle);
+		FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(Effect, 1, ContextHandle);
 		if (SpecHandle.IsValid())
 		{
-			FActiveGameplayEffectHandle EffectHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());	
+			FActiveGameplayEffectHandle EffectHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), AbilitySystemComponent.Get());	
 		}
 	}
 }
 
+void ACharacterBase::InitializePassiveAbilities()
+{
+	// Grant Abilities only on Server.  todo: need a bInitialized?
+	if (GetLocalRole() != ROLE_Authority || !AbilitySystemComponent.IsValid())
+	{
+		return;
+	}
+	for (TSubclassOf<UXGameplayAbility>& Ability : PassiveGameplayAbilities)
+	{
+		// Ability(nullptr), Level(1), InputID(INDEX_NONE), SourceObject(nullptr)
+		AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(Ability, 1, static_cast<int32>(Ability.GetDefaultObject()->AbilityInputID), this));
+	}
+}
 
+void ACharacterBase::InitAbilityActorInfo()
+{
+	if (AXPlayerState* PS = GetPlayerState<AXPlayerState>())
+	{
+		if (UXAbilitySystemComponent* ASC = Cast<UXAbilitySystemComponent>(PS->GetAbilitySystemComponent()))
+		{
+			// If not Initialized
+			if (!AbilitySystemComponent.IsValid())
+			{
+				AbilitySystemComponent = ASC;
+			}
+			AbilitySystemComponent->InitAbilityActorInfo(PS, this);
+			// Bind Delegate
+			BindASCInput();
+
+			if (!CharMov)
+			{
+				CharMov = Cast<UXCharacterMovementComponent>(GetCharacterMovement());
+			}
+			ensure(CharMov);
+			AbilitySystemComponent->RegisterGameplayTagEvent(XGaitTags::Running, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ACharacterBase::OnRunning);
+			AbilitySystemComponent->RegisterGameplayTagEvent(XGaitTags::Sprinting, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ACharacterBase::OnSprinting);
+		
+		}
+	}
+}
 
 //////////////////////////////////////////////////////////////////////////
 // Input
@@ -317,11 +335,6 @@ void ACharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnMove);
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnLook);
-		// Walk/Sprint/Crouch
-		EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnWalk);
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnSprint);
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &ThisClass::Input_OnSprint);
-		//EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Triggered, this, &ACharacterBase::);
 		
 		// Hanging
 		EnhancedInputComponent->BindAction(ClimbAction, ETriggerEvent::Triggered, this, &ThisClass::Input_OnClimbUp);
@@ -338,66 +351,32 @@ void ACharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	{
 		UE_LOG(LogTemplateCharacter, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
 	}
-
-	// GAS
-	if (ASC && PlayerInputComponent)
-	{
-		const FTopLevelAssetPath InputEnumPath(
-			TEXT("/Script/ProjectX"),       
-			TEXT("EAbilityInputID")  
-		);
-		FGameplayAbilityInputBinds Binds(
-			TEXT("Confirm"),
-			TEXT("Cancel"),
-			InputEnumPath,
-			static_cast<uint8>(EAbilityInputID::Confirm),
-			static_cast<uint8>(EAbilityInputID::Cancel)
-		);
-		
-		ASC->BindAbilityActivationToInputComponent(PlayerInputComponent,Binds);
-	}
+	BindASCInput();
 }
 
 void ACharacterBase::Input_OnJump()
 {
-	Super::Jump();
-	ensure(ClimbComp);
-	if (ClimbComp->HangTracer())
-	{
-		ClimbComp->GrabLedge();
-	} else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Can't Hang"));
-	}
+	Jump();
 }
 
 void ACharacterBase::Input_OnStopJumping()
 {
-	Super::StopJumping();
+	//Super::StopJumping();
+	StopJumping();
 }
 
 void ACharacterBase::Input_OnMove(const FInputActionValue& Value)
 {
-	if (Controller && Controller->IsLocalController()
-		&& GetLocalRole() == ROLE_AutonomousProxy)
+	FVector2D MovementVector = Value.Get<FVector2D>();
+	if (Controller != nullptr)
 	{
-		UE_LOG(LogTemp, Warning,
-			TEXT("[MoveForward][CLIENT] Value=%s"), *Value.ToString());
-		FVector2D MovementVector = Value.Get<FVector2D>();
-		if (Controller != nullptr)
-		{
-			const FRotator Rotation = Controller->GetControlRotation();
-			const FRotator YawRotation(0, Rotation.Yaw, 0);
-			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-			AddMovementInput(ForwardDirection, MovementVector.Y);
-			AddMovementInput(RightDirection, MovementVector.X);
-		}
-		
-		
+		const FRotator Rotation = Controller->GetControlRotation();
+		const FRotator YawRotation(0, Rotation.Yaw, 0);
+		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		AddMovementInput(ForwardDirection, MovementVector.Y);
+		AddMovementInput(RightDirection, MovementVector.X);
 	}
-
-
 }
 
 void ACharacterBase::Input_OnLook(const FInputActionValue& Value)
@@ -410,38 +389,12 @@ void ACharacterBase::Input_OnLook(const FInputActionValue& Value)
 	}
 }
 
-void ACharacterBase::Input_OnWalk()
-{
-	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("Input_OnWalk"));
-	if (Gait == XGaitTags::Walking)
-	{
-		Gait = XGaitTags::Running;
-		GetCharacterMovement()->MaxWalkSpeed = 500.f;
-		// todo: 后续类似的改动通过refresh或者进行更新
-	} else if (Gait == XGaitTags::Running)
-	{
-		Gait = XGaitTags::Walking;
-		GetCharacterMovement()->MaxWalkSpeed = 375.f;
-	}
-	Server_SetGait(Gait);
-}
-
-void ACharacterBase::Input_OnSprint(const FInputActionValue& Value)
-{
-	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("Input_OnSprint"));
-	Gait = Value.Get<bool>() ? XGaitTags::Sprinting : XGaitTags::Running;
-	GetCharacterMovement()->MaxWalkSpeed = 700.f;
-	Server_SetGait(Gait);
-}
-
 void ACharacterBase::Input_OnClimbUp(const FInputActionValue& Value)
 {
-	ensure(ClimbComp);
-	ensure(GetCharacterMovement());
-	
+	ensure(CharMov);
 	if (AnimInstance && ClimbSetting->ClimbMontage)
 	{
-		GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+		CharMov->SetMovementMode(MOVE_Flying);
 		AnimInstance->Montage_Play(ClimbSetting->ClimbMontage, 1.f);
 		FOnMontageEnded ClimbUpCompleteDelegate;
 		ClimbUpCompleteDelegate.BindUObject(this, &ThisClass::OnClimbUpMontageEnded);
@@ -451,23 +404,26 @@ void ACharacterBase::Input_OnClimbUp(const FInputActionValue& Value)
 
 void ACharacterBase::Input_OnClimbMove(const FInputActionValue& Value)
 {
-	ensure(ClimbComp);
+	
 	ensure(AnimInstance);
+	ensure(CharMov);
 	if (Controller != nullptr)
 	{
 		FVector2D MovementVector = Value.Get<FVector2d>();
 		EHangMoveDirection Direction = MovementVector.X > 0 ? EHangMoveDirection::Right : EHangMoveDirection::Left;
-		if (ClimbComp->CanClimbMove(Direction))
+		AnimInstance->SetHangMoveDirection(Direction);
+		CharMov->SetHangInput(MovementVector.X);
+		/*if (ClimbComp->CanClimbMove(Direction))
 		{
-			AnimInstance->SetHangMoveDirection(Direction);
-			if (UXCharacterMovementComponent* UxCharacterMovementComp = Cast<UXCharacterMovementComponent>(GetCharacterMovement()))
+			
+			if (CharMov)
 			{
-				UxCharacterMovementComp->SetHangInput(MovementVector.X);	
+				CharMov->SetHangInput(MovementVector.X);	
 			}
 		} else
 		{
 			ResetClimbMoveInput();
-		}
+		}*/
 	}
 }
 

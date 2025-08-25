@@ -11,6 +11,8 @@
 		GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
 		GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FAttributeChangeEvent, UAttributeSet*, AttributeSet, float, OldValue, float, NewValue);
+
 UCLASS()
 class PROJECTX_API UXAttributeSet : public UAttributeSet
 {
@@ -21,7 +23,6 @@ public:
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 	
-	// Attributes, 暂时没有联机的计划, 不再书写OnRep函数
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes", Replicated);
 	FGameplayAttributeData Health;
 	ATTRIBUTE_ACCESSORS(UXAttributeSet, Health);
@@ -45,4 +46,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes", Replicated);
 	FGameplayAttributeData MaxStamina;
 	ATTRIBUTE_ACCESSORS(UXAttributeSet, MaxStamina);
+
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes", Replicated);
+	FGameplayAttributeData MaxWalkSpeed;
+	ATTRIBUTE_ACCESSORS(UXAttributeSet, MaxWalkSpeed);
 };

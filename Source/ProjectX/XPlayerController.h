@@ -7,6 +7,7 @@
 #include "Items/InventoryHUDInterface.h"
 #include "XPlayerController.generated.h"
 
+class ACharacterBase;
 class AItemBase;
 class UInventoryWidget;
 class UPlayerHUD;
@@ -20,9 +21,13 @@ class PROJECTX_API AXPlayerController : public APlayerController, public IInvent
 	GENERATED_BODY()
 public:
 	AXPlayerController(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
-	
+
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void AcknowledgePossession(class APawn* P) override;
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void ToggleInventory();
+
+	UPlayerHUD* GetPlayerHUD();
 	
 	UFUNCTION()
 	void ShowHUD(bool Visible);
@@ -43,19 +48,23 @@ public:
 	// TEST
 	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "test")
 	void RemoveItemTest(int32 Index);
+
+	// UI for test
+	void CreateHUD();
 protected:
-	virtual void OnPossess(APawn* InPawn) override;
 	virtual void BeginPlay() override;
-	virtual void PostInitializeComponents() override;
 	
 	void ConstructInventoryWidget();
 	void ConstructGridWidget();
 
 // Variables
-	UPROPERTY(BlueprintReadWrite, Category= HUD)
+	UPROPERTY()
+	TObjectPtr<ACharacterBase> OwnerCharacter;
+	
+	UPROPERTY(BlueprintReadWrite, Category= "HUD")
 	TObjectPtr<UPlayerHUD> PlayerHUD;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = HUD)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD")
 	TSubclassOf<UPlayerHUD> HUDClass;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= "Item", meta = (AllowPrivateAccess = "true"))

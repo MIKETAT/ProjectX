@@ -24,9 +24,11 @@ public class ProjectX : ModuleRules
 			"UMG",
 			"Slate",
 			"SlateCore",
-			"NetCore"
+			"NetCore",
+			"GameplayAbilities", 
+			"GameplayTags", 
+			"GameplayTasks"
         });
-		PrivateDependencyModuleNames.AddRange(new string[] {"GameplayAbilities", "GameplayTags", "GameplayTasks"});
 		
 		// For Debug
 		if (Target.Configuration == UnrealTargetConfiguration.DebugGame)

@@ -1,6 +1,10 @@
 #include "XPlayerController.h"
-#include "UI/PlayerHUD.h"
+
+#include "AbilitySystemComponent.h"
+#include "UI/HUD/PlayerHUD.h"
 #include "Blueprint/UserWidget.h"
+#include "Character/CharacterBase.h"
+#include "Character/XPlayerState.h"
 #include "Component/InventoryComponent.h"
 #include "Items/ItemBase.h"
 #include "UI/Inventory/InventoryGrid.h"
@@ -12,28 +16,34 @@ void AXPlayerController::RemoveItemTest_Implementation(int32 Index)
 	InventoryComp->RemoveItemAtIndex(Index);
 }
 
-void AXPlayerController::OnPossess(APawn* InPawn)
-{
-
-	Super::OnPossess(InPawn);
-}
-
 void AXPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 	ConstructInventoryWidget();
-}
-
-void AXPlayerController::PostInitializeComponents()
-{
-	Super::PostInitializeComponents();
+	//CreateHUD();
 }
 
 AXPlayerController::AXPlayerController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer) {
 	InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 	bReplicates = true;
-	//CreateHUD();
+}
+
+// Server only
+void AXPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	/*AXPlayerState* PS = GetPlayerState<AXPlayerState>();
+	if (PS && PS->GetAbilitySystemComponent())
+	{
+		PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, InPawn);
+	}*/
+}
+
+void AXPlayerController::AcknowledgePossession(APawn* P)
+{
+	Super::AcknowledgePossession(P);
+	OwnerCharacter = Cast<ACharacterBase>(P);
 }
 
 void AXPlayerController::ToggleInventory()
@@ -48,6 +58,11 @@ void AXPlayerController::ToggleInventory()
 	InventoryWidget->ToggleWindow();
 	SetInputModeByWidgetVisibility();
 	// todo: broadcast event
+}
+
+UPlayerHUD* AXPlayerController::GetPlayerHUD()
+{
+	return PlayerHUD;
 }
 
 
@@ -81,7 +96,6 @@ void AXPlayerController::UI_MoveInventoryItem_Implementation(int32 SourceIndex, 
 
 void AXPlayerController::SetInputModeByWidgetVisibility()
 {
-	// todo: check hud valid
 	if (!IsValid(InventoryWidget))
 	{
 		return;
@@ -104,7 +118,6 @@ void AXPlayerController::PickupItem_Implementation(AItemBase* Item)
 		InventoryComp->AddItemDefinition(Item->GetItemDefinition());
 	}
 }
-UE_ENABLE_OPTIMIZATION
 // ~ End of IInventoryHUDInterface
 
 
@@ -131,20 +144,34 @@ void AXPlayerController::ConstructGridWidget()
 	InventoryWidget->ConsumablesGrid->ConstructInventoryGrid();
 }
 
-
-/*void AXPlayerController::CreateHUD()
+void AXPlayerController::CreateHUD()
 {
 	if (PlayerHUD)
 	{
 		ShowHUD(true);
-	} else
+		return;
+	} 
+	if (!HUDClass || !IsLocalController())
 	{
-		ensure(HUDClass);
-		PlayerHUD = CreateWidget<UPlayerHUD>(this, HUDClass);
-		if (PlayerHUD)
-		{
-			PlayerHUD->AddToViewport();
-			ShowHUD(true);
-		}
+		UE_LOG(LogTemp, Error, TEXT("CreateHUD::HUDClass is nullptr or not a local controller"));
+		return;
 	}
-}*/
+	AXPlayerState* PS = GetPlayerState<AXPlayerState>();
+	if (!PS)
+	{
+		return;
+	}
+	PlayerHUD = CreateWidget<UPlayerHUD>(this, HUDClass);
+	if (PlayerHUD)
+	{
+		PlayerHUD->AddToViewport();
+		// Set Attributes
+		PlayerHUD->SetCurrentHealth(PS->GetHealth());
+		PlayerHUD->SetMaxHealth(PS->GetMaxHealth());
+		PlayerHUD->SetCurrentMana(PS->GetMana());
+		PlayerHUD->SetMaxMana(PS->GetMaxMana());
+		PlayerHUD->SetCurrentStamina(PS->GetStamina());
+		PlayerHUD->SetMaxStamina(PS->GetMaxStamina());
+		ShowHUD(true);	
+	}
+}
