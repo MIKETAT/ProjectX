@@ -27,6 +27,8 @@ PROJECTX_API DECLARE_LOG_CATEGORY_EXTERN(ProjectX, Log, All);
 #if 1
 inline float MacroDuration = 15.f;
 #define XLOG(x) GEngine->AddOnScreenDebugMessage(-1, MacroDuration ? MacroDuration : -1.f, FColor::Red, x)
+#define VLOG(x) UE_LOG(ProjectX, Error, x)
+#define SLOG(x) UE_LOG(ProjectX, Error, TEXT("%s"), *FString(x))
 #define POINT(x, c) DrawDebugPoint(GetWorld(), x, 15, c, false, MacroDuration ? MacroDuration : -1.f)
 #define LINE(x, y, c) DrawDebugLine(GetWorld(), x, y, c, false, MacroDuration ? MacroDuration : -1.f)
 #define CAPSULE(x, hh, r, c, time) DrawDebugCapsule(GetWorld(), x, hh, r, FQuat::Identity, c, false, time)

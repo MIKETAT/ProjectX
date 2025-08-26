@@ -9,12 +9,35 @@
 
 FRootMotionSource_Hang::FRootMotionSource_Hang()
 {
-	Priority = 100;
+	Priority = 1000;
 }
 
 bool FRootMotionSource_Hang::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 {
-	return FRootMotionSource::NetSerialize(Ar, Map, bOutSuccess);
+	if (!FRootMotionSource::NetSerialize(Ar, Map, bOutSuccess))
+	{
+		bOutSuccess = false;
+		return false;
+	}
+	bOutSuccess = true;
+	auto bSuccessLocal{true};
+
+	Ar << Montage;
+	Ar << TargetPrimitive;
+
+	bOutSuccess &= SerializePackedVector<100, 30>(StartWorldLocation, Ar);
+
+	StartWorldRotation.NetSerialize(Ar, Map, bSuccessLocal);
+	StartWorldRotation.Normalize();
+	bOutSuccess &= bSuccessLocal;
+
+	bOutSuccess &= SerializePackedVector<100, 30>(RelativeTargetLocation, Ar);
+
+	RelativeTargetRotation.NetSerialize(Ar, Map, bSuccessLocal);
+	RelativeTargetRotation.Normalize();
+	bOutSuccess &= bSuccessLocal;
+
+	return bOutSuccess;
 }
 
 FRootMotionSource* FRootMotionSource_Hang::Clone() const
@@ -24,7 +47,12 @@ FRootMotionSource* FRootMotionSource_Hang::Clone() const
 
 bool FRootMotionSource_Hang::Matches(const FRootMotionSource* Other) const
 {
-	return FRootMotionSource::Matches(Other);
+	if (!FRootMotionSource::Matches(Other))
+	{
+		return false;
+	}
+	const auto* OtherHang = static_cast<const FRootMotionSource_Hang*>(Other);
+	return Montage == OtherHang->Montage && TargetPrimitive == OtherHang->TargetPrimitive;
 }
 
 UScriptStruct* FRootMotionSource_Hang::GetScriptStruct() const
@@ -35,8 +63,7 @@ UScriptStruct* FRootMotionSource_Hang::GetScriptStruct() const
 void FRootMotionSource_Hang::AddReferencedObjects(class FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(Collector);
-	// todo: 
-	//Collector.AddReferencedObjects()
+	Collector.AddReferencedObject(Montage);
 }
 
 void FRootMotionSource_Hang::PrepareRootMotion(float SimulationTime, float MovementTickTime,
@@ -55,8 +82,8 @@ void FRootMotionSource_Hang::PrepareRootMotion(float SimulationTime, float Movem
 	const auto MontageTime{GetTime() * Montage->RateScale};
 	Character.GetMesh()->GetAnimInstance()->Montage_SetPosition(Montage, FMath::Max(0.f, MontageTime - MovementTickTime));
 	
-	// Get Target World Transform
-	FTransform TargetWorldTransform = RelativeTargetTransform * TargetPrimitive->GetComponentTransform();
+	// Get Current Target World Transform
+	FTransform TargetWorldTransform = FTransform{RelativeTargetRotation, RelativeTargetLocation} * TargetPrimitive->GetComponentTransform();
 	
 	// Twist to only keep yaw
 	const FQuat Twist{UProjectXUtils::GetTwist(TargetWorldTransform.GetRotation(), -Character.GetGravityDirection())};
@@ -65,13 +92,13 @@ void FRootMotionSource_Hang::PrepareRootMotion(float SimulationTime, float Movem
 	// Delta Location
 	const float CurrentMoveFraction = GetTime() / GetDuration();
 	const float ExpectMoveFraction = (GetTime() + SimulationTime) / Duration;
-	FVector CurrentLocation = FMath::Lerp(StartWorldTransform.GetLocation(), TargetWorldTransform.GetLocation(), CurrentMoveFraction);
-	FVector ExpectLocation = FMath::Lerp(StartWorldTransform.GetLocation(), TargetWorldTransform.GetLocation(), ExpectMoveFraction);
+	FVector CurrentLocation = FMath::Lerp(StartWorldLocation, TargetWorldTransform.GetLocation(), CurrentMoveFraction);
+	FVector ExpectLocation = FMath::Lerp(StartWorldLocation, TargetWorldTransform.GetLocation(), ExpectMoveFraction);
 	FVector DeltaLocation = ExpectLocation - CurrentLocation;
 
 	// Delta Rotation
-	FQuat CurrentQuat = FQuat::Slerp(StartWorldTransform.GetRotation(), TargetWorldTransform.GetRotation(), CurrentMoveFraction);
-	FQuat ExpectQuat = FQuat::Slerp(StartWorldTransform.GetRotation(), TargetWorldTransform.GetRotation(), ExpectMoveFraction);
+	FQuat CurrentQuat = FQuat::Slerp(StartWorldRotation.Quaternion(), TargetWorldTransform.GetRotation(), CurrentMoveFraction);
+	FQuat ExpectQuat = FQuat::Slerp(StartWorldRotation.Quaternion(), TargetWorldTransform.GetRotation(), ExpectMoveFraction);
 	FQuat DeltaQuat = CurrentQuat.Inverse() * ExpectQuat;
 	FTransform NewTransform{DeltaQuat, DeltaLocation / MovementTickTime};
 	

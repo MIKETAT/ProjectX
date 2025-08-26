@@ -10,23 +10,21 @@
 void UXCharacterMovementComponent::OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode)
 {
 	Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
-	// 从Hanging状态切换出去后恢复使用Controller的Rotation
+	// Leave Hanging State
 	if (PreviousMovementMode == MOVE_Custom && PreviousCustomMode == static_cast<uint8>(ECustomMoveMode::CMove_Hanging))
 	{
 		bUseControllerDesiredRotation = true;
 		OnHangStateChanged.Broadcast(bWantsToHanging);
+		HangMoveInput = 0.f;
+		WallRightDirection = FVector::ZeroVector;
+		GravityScale = 1.f;
 	}
+	// Enter Hanging State
 	if (MovementMode == MOVE_Custom && CustomMovementMode == static_cast<uint8>(ECustomMoveMode::CMove_Hanging))
 	{
 		GravityScale = 0.f;
 		Velocity = FVector::ZeroVector;
 		OnHangStateChanged.Broadcast(bWantsToHanging);
-	} else
-	{
-		if (MovementMode == MOVE_Walking)
-		{
-			GravityScale = 1.f;
-		}
 	}
 }
 
@@ -65,34 +63,122 @@ void UXCharacterMovementComponent::PhysHanging(float deltaTime, int32 Iterations
 	{
 		return;
 	}
-	Iterations++;
-	bJustTeleported = false;
+	// SubStep
+	float remainingTime = deltaTime;
+	const EMovementMode StartingMovementMode = MovementMode;
+	const uint8 StartingCustomMovementMode = CustomMovementMode;
 	
-	//RestorePreAdditiveRootMotionVelocity();
-	//ApplyRootMotionToVelocity(deltaTime);
+	while (remainingTime >= MIN_TICK_TIME && Iterations < MaxSimulationIterations)
+	{
+		Iterations++;
+		const float TimeTick = GetSimulationTimeStep(remainingTime, Iterations);
+		remainingTime -= TimeTick;
 
-	// maybe we don't need to do substep in this
-	Velocity = WallRightDirection * HangMoveInput * HangMoveSpeed;
-	FHitResult HitResult;
-	SafeMoveUpdatedComponent(Velocity * deltaTime, UpdatedComponent->GetComponentQuat(), true, HitResult);
+		RestorePreAdditiveRootMotionVelocity();
+		const FVector Tangent = WallRightDirection.GetSafeNormal();
+		
+		if (!HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity())
+		{
+			FVector InputAccel = ScaleInputAcceleration((HangMoveInput * WallRightDirection).GetClampedToMaxSize(1.f));
+			Acceleration = Tangent * FVector::DotProduct(InputAccel, Tangent);
+			CalcVelocity(TimeTick, HangFriction, false, HangBraking);
+			
+			// ReProject
+			Velocity = Tangent * FVector::DotProduct(Velocity, Tangent);
+			
+			// clamp 
+			const float SpeedAlongTangent = FVector::DotProduct(Velocity, Tangent);
+			Velocity = Tangent * FMath::Clamp(SpeedAlongTangent, -MaxHangSpeed, MaxHangSpeed);
+		} else
+		{
+			// Override by RootMotion, keep velocity along tangent
+			const float Along = FVector::DotProduct(Velocity, Tangent);		// cos
+			Velocity = Tangent * Along;
+		}
+		
+		ApplyRootMotionToVelocity(TimeTick);
+		if (StartingMovementMode != MovementMode || StartingCustomMovementMode != CustomMovementMode)
+		{
+			// ApplyRootMotionToVelocity 可能改变MovementMode
+			// 目前没有应用移动所以 TimeTick 和 Iterations 都复原
+			StartNewPhysics(remainingTime + TimeTick, Iterations-1);
+			return;
+		}
+		
+		FVector OldLocation = UpdatedComponent->GetComponentLocation();
+		const FVector Adjust = Velocity * TimeTick;
+		
+		FHitResult Hit(1.f);
+		SafeMoveUpdatedComponent(Adjust, UpdatedComponent->GetComponentQuat(), true, Hit);
+		if (Hit.Time < 1.f)
+		{
+			HandleImpact(Hit, TimeTick, Adjust);
+		}
+		if (!Adjust.IsNearlyZero())
+		{
+			// Check if there is still a wall to hang on
+			FHitResult FrontHit, DownHit;
+			const FVector Offset = Adjust.GetSafeNormal2D() * CapRadius();
+			if (!CanHang(FrontHit, DownHit, Offset))
+			{
+				// Fall from the wall
+				bWantsToHanging = false;
+				SetMovementMode(MOVE_Falling);
+				//StartNewPhysics(deltaTime, Iterations);
+				return;
+			}
+		}
+		
+		
+		if (!Hit.bBlockingHit && !bJustTeleported && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity())
+		{
+			Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / TimeTick;
+		}
+		MaintainHorizontalHangingVelocity();
+	}
 }
 
 float UXCharacterMovementComponent::GetMaxSpeed() const
 {
 	if (!CharacterOwner)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UXCharacterMovementComponent::GetMaxSpeed: Owner is not a CharacterBase!"));
 		return Super::GetMaxSpeed();
 	}
-	if (bWantsToRun)
+	if (MovementMode == MOVE_Walking)
 	{
-		return MaxRunSpeed;
+		if (bWantsToSprint)
+		{
+			return MaxSprintSpeed;
+		}
+		if (bWantsToRun)
+		{
+			return MaxRunSpeed;
+		}
+		return MaxWalkSpeed;
 	}
-	if (bWantsToSprint)
+	if (MovementMode == MOVE_Custom && CustomMovementMode == static_cast<uint8>(ECustomMoveMode::CMove_Hanging))
 	{
-		return MaxSprintSpeed;
+		return MaxHangSpeed;
 	}
 	return Super::GetMaxSpeed();
+}
+
+float UXCharacterMovementComponent::GetMaxAcceleration() const
+{
+	if (MovementMode == MOVE_Custom && CustomMovementMode == static_cast<uint8>(ECustomMoveMode::CMove_Hanging))
+	{
+		return MaxHangAcceleration;
+	}
+	return Super::GetMaxAcceleration();
+}
+
+float UXCharacterMovementComponent::GetMinAnalogSpeed() const
+{
+	if (MovementMode == MOVE_Custom && CustomMovementMode == static_cast<uint8>(ECustomMoveMode::CMove_Hanging))
+	{
+		return MaxHangSpeed;
+	}
+	return Super::GetMinAnalogSpeed();
 }
 
 void UXCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float DeltaSeconds)
@@ -121,14 +207,12 @@ XLOG("Transition Finished");
 		{
 			if (TransitionRMS.IsValid())
 			{
-				TransitionMontage = nullptr;
 				TransitionRMS_ID = INDEX_NONE;
 				SetWantsToHanging(true);
 				SetMovementMode(MOVE_Custom, static_cast<uint8>(ECustomMoveMode::CMove_Hanging));
 				bOrientRotationToMovement = false;
 				// todo: 旋转改变不平滑。
 				OwnerCharacter->GetController()->SetControlRotation(OwnerCharacter->GetActorRotation());
-XLOG("Successfully Set State to Hanging");;
 			} else
 			{
 				SetMovementMode(MOVE_Walking);
@@ -152,9 +236,17 @@ void UXCharacterMovementComponent::UpdateCharacterStateAfterMovement(float Delta
 	// UpdateCharacterAfterMovement适合获取状态信息，但不适合进行动画/状态的切换(会影响当前帧)
 	if (GetRootMotionSourceByID(TransitionRMS_ID) && GetRootMotionSourceByID(TransitionRMS_ID)->Status.HasFlag(ERootMotionSourceStatusFlags::Finished))
 	{
-		XLOG("Transition Root Motion Source Finished!!!");
+		XLOG("Transition RMS Finished!!!");
 		RemoveRootMotionSourceByID(TransitionRMS_ID);
 		bWantsTransitionFinished = true;
+	}
+}
+
+void UXCharacterMovementComponent::MaintainHorizontalHangingVelocity()
+{
+	if (GetGravitySpaceZ(Velocity) != 0.f)
+	{
+		Velocity = ProjectToGravityFloor(Velocity);
 	}
 }
 
@@ -304,128 +396,18 @@ bool UXCharacterMovementComponent::IsCrouching() const
 
 bool UXCharacterMovementComponent::HangTracer()
 {
-	ensure(OwnerCharacter && OwnerCharacter->GetMesh());
-	ensure(OwnerCharacter->GetCharacterMovement() && OwnerCharacter->GetCapsuleComponent());
-	
-	// (Walking && !Crouch) || Flying can continue
-	if (!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Flying))
-	{
-		return false;
-	}
-	if (OwnerCharacter->GetCurrentMontage())
+	FHitResult FrontHit, DownHit;
+	if (!CanHang(FrontHit, DownHit))
 	{
 		return false;
 	}
 	
-	// Settings Parameters
-	const FClimbTraceSetting TraceSetting{OwnerCharacter->SelectClimbSetting()->TraceSetting};
-	
-	const float ReachDistance{TraceSetting.ReachDistance};
-	const float LedgeOffset{TraceSetting.LedgeOffset};
-	
-	const float WallAngleThreshold{TraceSetting.WallAngleThreshold}; // 角度阈值
-	const ECollisionChannel ClimbTraceChannel{TraceSetting.ClimbTraceChannel};
-	
-	const FVector2f LedgeHeight{TraceSetting.LedgeHeight};
-	const float LedgeHeightDelta{TraceSetting.LedgeHeight.GetMax() - TraceSetting.LedgeHeight.GetMin()};
-	const float ForwardTraceCapsuleHalfHeight{LedgeHeightDelta * 0.5f};
-	
-	// Parameters
-	const FVector ActorLocation{UpdatedComponent->GetComponentLocation()};
-	const FVector Fwd = UpdatedComponent->GetForwardVector().GetSafeNormal2D();
-	
-	FCollisionQueryParams Params = OwnerCharacter->GetIgnoreCharacterParams();
-	
-	// Trace Result Parameters
-	FHitResult FrontHit;
-	FHitResult DownHit;
-	
-	// Step1: Trace Front Face
-	const FVector FrontStart{ActorLocation + FVector::UpVector * MaxStepHeight};
-	const FVector FrontEnd = FrontStart + Fwd * ReachDistance;
-/*CAPSULE(FrontStart, CapHalfHeight(), CapRadius(), FColor::White, 10);
-CAPSULE(FrontEnd, CapHalfHeight(), CapRadius(), FColor::Yellow, 10);*/
-	bool IsFrontHit = GetWorld()->SweepSingleByChannel(FrontHit, FrontStart, FrontEnd,
-									FQuat::Identity, ClimbTraceChannel,
-									FCollisionShape::MakeCapsule(CapRadius(), ForwardTraceCapsuleHalfHeight), Params);
-LINE(FrontStart, FrontEnd, FColor::White);
-	if (!IsFrontHit || !FrontHit.GetComponent() || !FrontHit.GetComponent()->CanCharacterStepUp(OwnerCharacter))
-	{
-		XLOG("Front Trace Missed");
-		return false;
-	}
-	const float FrontWallSteepnessAngle =
-		FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(FVector::UpVector, FrontHit.ImpactNormal.GetSafeNormal())));
-	if (FMath::Abs(90 - FrontWallSteepnessAngle) > WallAngleThreshold)
-	{
-		XLOG("Not a Vertical Wall");
-		return false;
-	}
-	
-//CAPSULE(FrontHit.ImpactPoint, CapHalfHeight(), CapRadius(), FColor::Green, 10);
-//POINT(FrontHit.ImpactPoint, FColor::Red);
-	
-	
-	// Set WallRight Direction
-	WallRightDirection = FVector::CrossProduct(FVector::UpVector, -FrontHit.ImpactNormal.GetSafeNormal()).GetSafeNormal();
-	
-	// Step2: Downward Trace
-	const FVector FrontWallOffset = -FrontHit.ImpactNormal.GetSafeNormal2D() * LedgeOffset;	 
-
-	const FVector DownStart = FrontHit.ImpactPoint + FrontWallOffset + FVector::UpVector * CapHalfHeight() * 2.f;
-	const FVector DownEnd = FrontHit.ImpactPoint + FrontWallOffset + FVector::DownVector * CapHalfHeight();
-
-	// todo: Capsule Half Height 应该 和 LedgeHeight有关
-	bool bDownwardHit = GetWorld()->LineTraceSingleByChannel(DownHit, DownStart, DownEnd, ClimbTraceChannel, Params);
-	
-LINE(DownStart, DownEnd, FColor::Yellow);
-
-POINT(DownHit.ImpactPoint, FColor::Purple);
-
-	UCharacterMovementComponent* MovementComp = OwnerCharacter->GetCharacterMovement();
-	const float LedgeSurfaceAngle = FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(FVector::UpVector, DownHit.ImpactNormal.GetSafeNormal())));
-	
-	if (FMath::Abs(LedgeSurfaceAngle) > WallAngleThreshold)
-	{
-		XLOG("Not a Horizontal Surface");
-		return false;
-	}
-	
-	if (!bDownwardHit || !DownHit.GetComponent() || !DownHit.GetComponent()->CanCharacterStepUp(OwnerCharacter)
-		|| !MovementComp || !MovementComp->IsWalkable(DownHit))
-	{
-		XLOG("Downward Trace Missed");
-		return false;
-	}
-
-	// Step3: 攀爬上方是否足够容纳玩家
-	FVector ClearCapLoc = DownHit.ImpactPoint + (-FrontHit.ImpactNormal.GetSafeNormal2D() * CapRadius()) + FVector::UpVector * (CapHalfHeight() + LedgeOffset);
-	if (GetWorld()->OverlapAnyTestByChannel(ClearCapLoc, FQuat::Identity, ECollisionChannel::ECC_Visibility, FCollisionShape::MakeCapsule(CapRadius(), CapHalfHeight()), Params)) {
-		XLOG("No Room for Climb");
-CAPSULE(ClearCapLoc, CapHalfHeight(), CapRadius(), FColor::Red, 10);
-		return false;
-	}
-CAPSULE(ClearCapLoc, CapHalfHeight(), CapRadius(), FColor::Green, 10);
-	
-	// Step4: 判断墙壁上表面离玩家臀部距离是否过大
-	/*static const FName PelvisSocket("PelvisSocket", FNAME_Find);
-	const FVector DownwardHitImpactPoint{DownHit.ImpactPoint};
-	const float LedgeThreshold{TraceSetting.ClimbLedgeThreshold};
-	float DistanceHipToSurface = DownwardHitImpactPoint.Z - OwnerCharacter->GetMesh()->GetSocketLocation(PelvisSocket).Z;
-	// 玩家臀部距上表面超过阈值则无法攀爬
-	bool CanHang = DistanceHipToSurface < LedgeThreshold;
-	if (!CanHang)
-	{
-		return false;
-	}*/
-XLOG("Can Mantle/Climb/Hang");
-
-	
+SLOG("Can Mantle/Climb/Hang");
 	// Grab Ledge
 	// todo: review this
 	//const float MontageDuration = Montage_BracedHang->GetPlayLength();
 	const float PlayRate = 1.f;
-	bool bUseRelative = true;
+	bool bUseRelative = true;	// todo: 非移动物体使用World可避免计算节省性能
 	
 	TransitionRMS.Reset();
 	TransitionRMS = MakeShared<FRootMotionSource_Hang>();
@@ -434,11 +416,13 @@ XLOG("Can Mantle/Climb/Hang");
 	TransitionRMS_Name = "Hang";	// todo: do not hard cord TransitionRMS_Name
 	
 	// todo: Duration need to match with montage
-	TransitionRMS->Duration = 1.27f; // MontageDuration / PlayRate; todo
+	ensure(TransitionRMS && TransitionRMS->Montage);
+	TransitionRMS->Duration =  TransitionRMS->Montage->GetPlayLength();
 	TransitionRMS->TargetPrimitive = DownHit.GetComponent();
 
 	const auto StartWorldTransform {UpdatedComponent->GetComponentTransform()};
-	TransitionRMS->StartWorldTransform = StartWorldTransform;
+	TransitionRMS->StartWorldLocation = StartWorldTransform.GetLocation();
+	TransitionRMS->StartWorldRotation = StartWorldTransform.GetRotation().Rotator();
 	
 	// Calc Relative Offset
 	FVector WorldOffset = OwnerCharacter->GetActorTransform().TransformVector(HandRelativeToCapsule);
@@ -452,8 +436,8 @@ LINE(TargetWorldLoc, TargetWorldLoc + TargetWorldRot.Vector() * 100.f, FColor::C
 	const auto RelativeTargetTransform{
 		WorldTargetTransform.GetRelativeTransform(TransitionRMS->TargetPrimitive->GetComponentTransform())
 	};
-	TransitionRMS->RelativeTargetTransform = RelativeTargetTransform;
-	
+	TransitionRMS->RelativeTargetLocation = RelativeTargetTransform.GetLocation();
+	TransitionRMS->RelativeTargetRotation = RelativeTargetTransform.GetRotation().Rotator();
 	// Apply Transition RootMotionSource
 	//bUseControllerDesiredRotation = false;	// todo:
 	bOrientRotationToMovement = true;		// todo
@@ -461,6 +445,97 @@ LINE(TargetWorldLoc, TargetWorldLoc + TargetWorldRot.Vector() * 100.f, FColor::C
 	TransitionRMS_ID = ApplyRootMotionSource(TransitionRMS);
 	OwnerCharacter->GetMesh()->GetAnimInstance()->Montage_Play(TransitionRMS->Montage);
 	XLOG("Playing Montage");
+	return true;
+}
+
+bool UXCharacterMovementComponent::CanHang(FHitResult& OutFrontHit, FHitResult& OutDownHit, FVector Offset)
+{
+	ensure(OwnerCharacter && OwnerCharacter->GetMesh());
+	ensure(OwnerCharacter->GetCharacterMovement() && OwnerCharacter->GetCapsuleComponent());
+	
+	// (Walking && !Crouch) || Flying can continue
+	if (!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Flying) && !IsMovementMode(MOVE_Falling) && !IsMovementMode(MOVE_Custom))
+	{
+		return false;
+	}
+	if (OwnerCharacter->GetCurrentMontage())
+	{
+		return false;
+	}
+	
+	// Settings Parameters
+	const FClimbTraceSetting TraceSetting{OwnerCharacter->SelectClimbSetting()->TraceSetting};
+	const float ReachDistance{TraceSetting.ReachDistance};
+	const float LedgeOffset{TraceSetting.LedgeOffset};
+	
+	const float WallAngleThreshold{TraceSetting.WallAngleThreshold}; // 角度阈值
+	const ECollisionChannel ClimbTraceChannel{TraceSetting.ClimbTraceChannel};
+	
+	const FVector2f LedgeHeight{TraceSetting.LedgeHeight};
+	const float LedgeHeightDelta{TraceSetting.LedgeHeight.GetMax() - TraceSetting.LedgeHeight.GetMin()};
+	const float ForwardTraceCapsuleHalfHeight{LedgeHeightDelta * 0.5f};
+	
+	// Parameters
+	const FVector ActorLocation{UpdatedComponent->GetComponentLocation() + Offset};
+	const FVector Fwd = UpdatedComponent->GetForwardVector().GetSafeNormal2D();
+	FCollisionQueryParams Params = OwnerCharacter->GetIgnoreCharacterParams();
+	
+	// Step1: Trace Front Face
+	const FVector FrontStart{ActorLocation + FVector::UpVector * MaxStepHeight};
+	const FVector FrontEnd = FrontStart + Fwd * ReachDistance;
+	bool IsFrontHit = GetWorld()->SweepSingleByChannel(OutFrontHit, FrontStart, FrontEnd,
+									FQuat::Identity, ClimbTraceChannel,
+									FCollisionShape::MakeCapsule(CapRadius(), ForwardTraceCapsuleHalfHeight), Params);
+LINE(FrontStart, FrontEnd, FColor::White);
+	if (!IsFrontHit || !OutFrontHit.GetComponent() || !OutFrontHit.GetComponent()->CanCharacterStepUp(OwnerCharacter))
+	{
+SLOG("Front Trace Missed");
+		return false;
+	}
+	const float FrontWallSteepnessAngle =
+		FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(FVector::UpVector, OutFrontHit.ImpactNormal.GetSafeNormal())));
+	if (FMath::Abs(90 - FrontWallSteepnessAngle) > WallAngleThreshold)
+	{
+SLOG("Not a Vertical Wall");
+		return false;
+	}
+	
+	// Set WallRight Direction
+	WallRightDirection = FVector::CrossProduct(FVector::UpVector, -OutFrontHit.ImpactNormal.GetSafeNormal()).GetSafeNormal();
+	
+	// Step2: Downward Trace
+	const FVector FrontWallOffset = -OutFrontHit.ImpactNormal.GetSafeNormal2D() * LedgeOffset;	 
+
+	const FVector DownStart = OutFrontHit.ImpactPoint + FrontWallOffset + FVector::UpVector * CapHalfHeight() * 2.f;
+	const FVector DownEnd = OutFrontHit.ImpactPoint + FrontWallOffset + FVector::DownVector * CapHalfHeight();
+
+	// todo: Capsule Half Height 应该 和 LedgeHeight有关
+	bool bDownwardHit = GetWorld()->LineTraceSingleByChannel(OutDownHit, DownStart, DownEnd, ClimbTraceChannel, Params);
+
+	UCharacterMovementComponent* MovementComp = OwnerCharacter->GetCharacterMovement();
+	const float LedgeSurfaceAngle = FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(FVector::UpVector, OutDownHit.ImpactNormal.GetSafeNormal())));
+	
+	if (FMath::Abs(LedgeSurfaceAngle) > WallAngleThreshold)
+	{
+SLOG("Not a Horizontal Surface");
+		return false;
+	}
+	
+	if (!bDownwardHit || !OutDownHit.GetComponent() || !OutDownHit.GetComponent()->CanCharacterStepUp(OwnerCharacter)
+		|| !MovementComp || !MovementComp->IsWalkable(OutDownHit))
+	{
+SLOG("Downward Trace Missed");
+		return false;
+	}
+
+	// Step3: 攀爬上方是否足够容纳玩家
+	FVector ClearCapLoc = OutDownHit.ImpactPoint + (-OutDownHit.ImpactNormal.GetSafeNormal2D() * CapRadius()) + FVector::UpVector * (CapHalfHeight() + LedgeOffset);
+	if (GetWorld()->OverlapAnyTestByChannel(ClearCapLoc, FQuat::Identity, ECollisionChannel::ECC_Visibility, FCollisionShape::MakeCapsule(CapRadius(), CapHalfHeight()), Params)) {
+SLOG("No Room for Climb");
+CAPSULE(ClearCapLoc, CapHalfHeight(), CapRadius(), FColor::Red, 10);
+		return false;
+	}
+CAPSULE(ClearCapLoc, CapHalfHeight(), CapRadius(), FColor::Green, 10);
 	return true;
 }
 
@@ -474,7 +549,6 @@ FVector UXCharacterMovementComponent::GetMantleStartLocation(FHitResult& FrontHi
 	const float DownDistance = 2.f * CapHalfHeight();
 	MantleStart += FVector::DownVector * DownDistance;
 	MantleStart += FVector::UpVector * 65.f; // todo: hard code
-//CAPSULE(MantleStart, CapHalfHeight(), CapRadius(), FColor::Orange, 10.f);
 	return MantleStart;
 }
 
@@ -486,7 +560,6 @@ void UXCharacterMovementComponent::SetHangInput(float Input)
 void UXCharacterMovementComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
-	SetMovementMode(MOVE_Walking);
 	OwnerCharacter = Cast<ACharacterBase>(GetOwner());
 	ensure(OwnerCharacter);
 }

@@ -80,6 +80,8 @@ public:
 
 	virtual bool IsCrouching() const override;
 	bool HangTracer();
+	bool CanHang(FHitResult& OutFrontHit, FHitResult& OutDownHit, FVector Offset = FVector::ZeroVector);
+	
 	FVector GetMantleStartLocation(FHitResult& FrontHit, FHitResult& DownHit) const;
 	
 	void SetHangInput(float Input);
@@ -106,17 +108,18 @@ public:
 	UPROPERTY()
 	FVector HandRelativeToCapsule{30.f, 2.f, 64.f};
 
-	
 protected:
 	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
 	virtual FVector ConstrainAnimRootMotionVelocity(const FVector& RootMotionVelocity, const FVector& CurrentVelocity) const override;
 	virtual void PhysHanging(float deltaTime, int32 Iterations);
 	virtual float GetMaxSpeed() const override;
+	virtual float GetMaxAcceleration() const override;
+	virtual float GetMinAnalogSpeed() const override;
 
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
 	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
-	//virtual void
+	virtual void MaintainHorizontalHangingVelocity();
 private:
 	// Helper Functions
 	bool IsServer() const;
@@ -156,7 +159,16 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true") )
 	FVector WallRightDirection;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb", meta = (AllowPrivateAccess = "true"))
+	float HangFriction{8.f};
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb", meta = (AllowPrivateAccess = "true"))
+	float HangBraking{2000.f};
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb", meta = (AllowPrivateAccess = "true"))
-	float HangMoveSpeed{100.f};
+	float MaxHangSpeed{200.f};
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb", meta = (AllowPrivateAccess = "true"))
+	float MaxHangAcceleration{2048.f};
 };

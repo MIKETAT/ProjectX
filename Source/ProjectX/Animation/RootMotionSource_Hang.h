@@ -28,15 +28,18 @@ public:
 
 	UPROPERTY()
 	TWeakObjectPtr<UPrimitiveComponent> TargetPrimitive;
-
-	UPROPERTY()
-	FTransform StartWorldTransform;
 	
 	UPROPERTY()
-	FTransform RelativeTargetTransform;		// 局部坐标系中的最终目标
+	FVector StartWorldLocation;
 
-	FVector LocationDeltaSum{0.f};
-	FRotator RotationDeltaSum;
+	UPROPERTY()
+	FRotator StartWorldRotation;
+
+	UPROPERTY()
+	FVector RelativeTargetLocation;
+
+	UPROPERTY()
+	FRotator RelativeTargetRotation;
 };
 
 template<>

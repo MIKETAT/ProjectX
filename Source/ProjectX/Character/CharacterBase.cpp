@@ -161,7 +161,7 @@ void ACharacterBase::SelectMappingContext()
 void ACharacterBase::OnHangStateChanged(bool NewState)
 {
 	SelectMappingContext();
-	UE_LOG(LogTemp, Error, TEXT("OnHangStateChanged BoardCast, GetIsHanging() = %d"), GetIsHanging());
+	UE_LOG(ProjectX, Error, TEXT("OnHangStateChanged BoardCast, GetIsHanging() = %d"), GetIsHanging());
 }
 
 void ACharacterBase::OnClimbUpMontageEnded(UAnimMontage* ClimbUpMontage, bool Interrupted)
@@ -404,7 +404,6 @@ void ACharacterBase::Input_OnClimbUp(const FInputActionValue& Value)
 
 void ACharacterBase::Input_OnClimbMove(const FInputActionValue& Value)
 {
-	
 	ensure(AnimInstance);
 	ensure(CharMov);
 	if (Controller != nullptr)
@@ -413,17 +412,6 @@ void ACharacterBase::Input_OnClimbMove(const FInputActionValue& Value)
 		EHangMoveDirection Direction = MovementVector.X > 0 ? EHangMoveDirection::Right : EHangMoveDirection::Left;
 		AnimInstance->SetHangMoveDirection(Direction);
 		CharMov->SetHangInput(MovementVector.X);
-		/*if (ClimbComp->CanClimbMove(Direction))
-		{
-			
-			if (CharMov)
-			{
-				CharMov->SetHangInput(MovementVector.X);	
-			}
-		} else
-		{
-			ResetClimbMoveInput();
-		}*/
 	}
 }
 
@@ -431,9 +419,9 @@ void ACharacterBase::Input_OnClimbMove_Complete(const FInputActionValue& Value)
 {
 	ensure(AnimInstance);
 	AnimInstance->SetHangMoveDirection(EHangMoveDirection::None);
-	if (UXCharacterMovementComponent* UxCharacterMovementComp = Cast<UXCharacterMovementComponent>(GetCharacterMovement()))
+	if (CharMov)
 	{
-		UxCharacterMovementComp->SetHangInput(0);	
+		CharMov->SetHangInput(0);	
 	}
 }
 
