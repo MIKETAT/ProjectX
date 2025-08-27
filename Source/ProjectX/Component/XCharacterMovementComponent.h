@@ -116,7 +116,7 @@ protected:
 	virtual float GetMaxSpeed() const override;
 	virtual float GetMaxAcceleration() const override;
 	virtual float GetMinAnalogSpeed() const override;
-
+	
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
 	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
 	virtual void MaintainHorizontalHangingVelocity();
@@ -153,11 +153,14 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Setting")
 	TObjectPtr<UAnimMontage> Montage_BracedHang;
+
+	UPROPERTY()
+	bool bIngorePhysRotationDuringRMS{false};
 	
 	UPROPERTY()
 	float HangMoveInput = 0.f;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true") )
+	UPROPERTY(BlueprintReadOnly, meta = (AllowPrivateAccess = "true") )
 	FVector WallRightDirection;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings | Climb", meta = (AllowPrivateAccess = "true"))

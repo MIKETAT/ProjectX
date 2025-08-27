@@ -222,16 +222,13 @@ XLOG("Transition Finished");
 		TransitionRMS_Name = "";
 		bWantsTransitionFinished = false;
 	}
+
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
 }
 
 void UXCharacterMovementComponent::UpdateCharacterStateAfterMovement(float DeltaSeconds)
 {
 	Super::UpdateCharacterStateAfterMovement(DeltaSeconds);
-	/*if (!HasAnimRootMotion() && IsMovementMode(MOVE_Flying))
-	{
-		SetMovementMode(MOVE_Walking);
-	}*/
 	// try to capture root motion source status
 	// UpdateCharacterAfterMovement适合获取状态信息，但不适合进行动画/状态的切换(会影响当前帧)
 	if (GetRootMotionSourceByID(TransitionRMS_ID) && GetRootMotionSourceByID(TransitionRMS_ID)->Status.HasFlag(ERootMotionSourceStatusFlags::Finished))
@@ -412,12 +409,13 @@ SLOG("Can Mantle/Climb/Hang");
 	TransitionRMS.Reset();
 	TransitionRMS = MakeShared<FRootMotionSource_Hang>();
 	TransitionRMS->AccumulateMode = ERootMotionAccumulateMode::Override;
-	TransitionRMS->Montage = Montage_BracedHang;	// todo:
+	
+	TransitionRMS->Montage = Montage_BracedHang;
 	TransitionRMS_Name = "Hang";	// todo: do not hard cord TransitionRMS_Name
 	
 	// todo: Duration need to match with montage
 	ensure(TransitionRMS && TransitionRMS->Montage);
-	TransitionRMS->Duration =  TransitionRMS->Montage->GetPlayLength();
+	TransitionRMS->Duration = TransitionRMS->Montage->GetPlayLength();
 	TransitionRMS->TargetPrimitive = DownHit.GetComponent();
 
 	const auto StartWorldTransform {UpdatedComponent->GetComponentTransform()};
@@ -439,8 +437,7 @@ LINE(TargetWorldLoc, TargetWorldLoc + TargetWorldRot.Vector() * 100.f, FColor::C
 	TransitionRMS->RelativeTargetLocation = RelativeTargetTransform.GetLocation();
 	TransitionRMS->RelativeTargetRotation = RelativeTargetTransform.GetRotation().Rotator();
 	// Apply Transition RootMotionSource
-	//bUseControllerDesiredRotation = false;	// todo:
-	bOrientRotationToMovement = true;		// todo
+	bUseControllerDesiredRotation =false;
 	Velocity = FVector::ZeroVector;
 	TransitionRMS_ID = ApplyRootMotionSource(TransitionRMS);
 	OwnerCharacter->GetMesh()->GetAnimInstance()->Montage_Play(TransitionRMS->Montage);
@@ -453,7 +450,7 @@ bool UXCharacterMovementComponent::CanHang(FHitResult& OutFrontHit, FHitResult& 
 	ensure(OwnerCharacter && OwnerCharacter->GetMesh());
 	ensure(OwnerCharacter->GetCharacterMovement() && OwnerCharacter->GetCapsuleComponent());
 	
-	// (Walking && !Crouch) || Flying can continue
+	// (Walking && !Crouch) || Flying || Falling || Custom::Hang(Edge Check) can continue
 	if (!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Flying) && !IsMovementMode(MOVE_Falling) && !IsMovementMode(MOVE_Custom))
 	{
 		return false;

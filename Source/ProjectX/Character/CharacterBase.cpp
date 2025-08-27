@@ -48,8 +48,7 @@ ACharacterBase::ACharacterBase(const FObjectInitializer& ObjInit)
 	CharMov->PrimaryComponentTick.bCanEverTick = true;
 	CharMov->SetIsReplicated(true);
 	CharMov->bUseControllerDesiredRotation = true;
-	CharMov->bAllowPhysicsRotationDuringAnimRootMotion = true;	// we need this to allow character to rotate when playing RMS
-	
+	CharMov->bAllowPhysicsRotationDuringAnimRootMotion = false;	// this just affects anim root motion.
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
